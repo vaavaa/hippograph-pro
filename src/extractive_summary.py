@@ -15,31 +15,78 @@ Original notes preserved intact — no compression, no deletion.
 """
 import sqlite3
 import math
+import re
 import numpy as np
 from collections import Counter, defaultdict
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 
 
+# Stopwords for major languages supported by xx_ent_wiki_sm
+_STOPWORDS = {
+    # English
+    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'shall', 'can', 'to', 'of', 'in', 'for',
+    'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'and',
+    'but', 'or', 'not', 'no', 'so', 'if', 'then', 'that', 'this', 'it',
+    'its', 'i', 'we', 'you', 'he', 'she', 'they', 'my', 'our', 'your',
+    # Russian (русский)
+    'и', 'в', 'на', 'с', 'по', 'из', 'за', 'к', 'о', 'от', 'до',
+    'не', 'что', 'как', 'это', 'но', 'а', 'или', 'же', 'ли', 'бы',
+    'то', 'для', 'при', 'об', 'со', 'без', 'под', 'над', 'про',
+    'его', 'её', 'им', 'их', 'мне', 'мы', 'вы', 'они', 'есть', 'был',
+    # German (Deutsch)
+    'der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einer',
+    'und', 'oder', 'aber', 'nicht', 'mit', 'bei', 'von', 'aus', 'nach',
+    'zu', 'zum', 'zur', 'im', 'am', 'ist', 'sind', 'war', 'hat', 'ich',
+    'du', 'er', 'sie', 'wir', 'ihr', 'es', 'sich', 'auf', 'an', 'in',
+    # Spanish (español)
+    'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del',
+    'al', 'en', 'con', 'por', 'para', 'que', 'se', 'su', 'sus', 'les',
+    'como', 'pero', 'hay', 'está', 'están', 'son', 'fue', 'han', 'yo',
+    'tu', 'nos', 'vos', 'este', 'esta', 'estos', 'estas', 'ese', 'eso',
+    # French (français)
+    'le', 'les', 'un', 'une', 'des', 'du', 'au', 'aux', 'et', 'ou',
+    'en', 'dans', 'sur', 'avec', 'par', 'pour', 'ne', 'pas', 'plus',
+    'que', 'qui', 'se', 'ce', 'son', 'ses', 'mon', 'mes', 'il', 'elle',
+    'nous', 'vous', 'ils', 'elles', 'est', 'sont', 'avoir', 'je', 'tu',
+    # Portuguese (português)
+    'de', 'da', 'do', 'das', 'dos', 'em', 'na', 'no', 'nas', 'nos',
+    'um', 'uma', 'que', 'se', 'por', 'para', 'com', 'como', 'mais',
+    'é', 'ao', 'à', 'ou', 'mas', 'foi', 'ele', 'ela', 'seu', 'sua',
+    # Italian (italiano)
+    'il', 'lo', 'la', 'gli', 'le', 'un', 'uno', 'una', 'di', 'del',
+    'della', 'dei', 'degli', 'delle', 'in', 'nel', 'nella', 'nei',
+    'che', 'con', 'per', 'non', 'su', 'ma', 'è', 'sono', 'io', 'tu',
+}
+
+# Unicode token pattern: captures Latin, Cyrillic, CJK, Arabic, Hebrew,
+# Devanagari, Thai, Korean, Greek, and more.
+_TOKEN_RE = re.compile(
+    r'['
+    r'\w'           # word chars (ASCII + Unicode letters/digits/_)
+    r'\u0400-\u04FF'  # Cyrillic
+    r'\u4E00-\u9FFF'  # CJK Unified Ideographs
+    r'\u3040-\u30FF'  # Hiragana + Katakana
+    r'\uAC00-\uD7AF'  # Hangul
+    r'\u0600-\u06FF'  # Arabic
+    r'\u0900-\u097F'  # Devanagari
+    r'\u0E00-\u0E7F'  # Thai
+    r'\u0370-\u03FF'  # Greek
+    r']+',
+    re.UNICODE
+)
+
+
 def _tokenize(text: str) -> List[str]:
-    """Simple whitespace + punctuation tokenizer."""
-    import re
+    """Unicode-aware tokenizer supporting 50+ languages."""
     text = text.lower()
-    tokens = re.findall(r'[a-zA-Zа-яА-Я0-9_]+', text)
-    # Filter stopwords (English + Russian basics)
-    stopwords = {
-        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-        'should', 'may', 'might', 'shall', 'can', 'to', 'of', 'in', 'for',
-        'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'and',
-        'but', 'or', 'not', 'no', 'so', 'if', 'then', 'that', 'this', 'it',
-        'its', 'i', 'we', 'you', 'he', 'she', 'they', 'my', 'our', 'your',
-        # Russian
-        'и', 'в', 'на', 'с', 'по', 'из', 'за', 'к', 'о', 'от', 'до',
-        'не', 'что', 'как', 'это', 'но', 'а', 'или', 'же', 'ли', 'бы',
-        'то', 'для', 'при', 'об', 'со', 'без', 'под', 'над', 'про',
-    }
-    return [t for t in tokens if t not in stopwords and len(t) > 2]
+    tokens = _TOKEN_RE.findall(text)
+    return [
+        t for t in tokens
+        if t not in _STOPWORDS and len(t) > 1
+    ]
 
 
 def compute_tfidf(docs: List[List[str]]) -> List[Dict[str, float]]:
