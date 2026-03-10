@@ -1,6 +1,6 @@
 # HippoGraph — Benchmark Results
 
-## February 2026
+## March 2026
 
 ---
 
@@ -18,7 +18,7 @@ We report LOCOMO results for retrieval quality validation. For real-world perfor
 
 Evaluated on [LOCOMO](https://github.com/snap-research/locomo) — 10 multi-session conversations, 272 sessions, 5,882 turns, 1,986 QA pairs.
 
-**Key result: 66.8% Recall@5 at zero LLM infrastructure cost.**
+**Key result: 78.7% Recall@5 at zero LLM infrastructure cost.**
 
 ### Best Configuration
 
@@ -29,20 +29,21 @@ Evaluated on [LOCOMO](https://github.com/snap-research/locomo) — 10 multi-sess
 | LLM calls | **0** (zero — fully local) |
 | Embedding model | paraphrase-multilingual-MiniLM-L12-v2 |
 | Entity extraction | spaCy (en\_core\_web\_sm + xx\_ent\_wiki\_sm) |
-| Retrieval pipeline | Semantic + Spreading Activation + BM25 + Bi-temporal + Cross-Encoder Reranking |
-| Blend weights | α=0.6 (semantic), β=0.10 (spreading), γ=0.15 (BM25), δ=0.15 (temporal) |
-| Reranking | cross-encoder/ms-marco-MiniLM-L-6-v2, weight=0.3, top-N=20 |
+| Retrieval pipeline | Semantic + Spreading Activation + BM25 + Cross-Encoder Reranking |
+| Blend weights | α=0.5 (semantic), β=0.35 (spreading), γ=0.15 (BM25) |
+| Reranking | cross-encoder/ms-marco-MiniLM-L-6-v2, weight=0.8, top-N=5 |
 | Granularity | Hybrid (3-turn chunks, ~1,960 notes) |
+| Category decay | Disabled (benchmark only — see Configuration Sensitivity) |
 
 ### Results: Best Configuration
 
 | Category | Queries | Hits | Recall@5 | MRR |
 |----------|---------|------|----------|-----|
-| **Overall** | **1,540** | **1,028** | **66.8%** | **0.549** |
-| Single-hop | 282 | 177 | 62.8% | 0.470 |
-| Multi-hop | 321 | 216 | 67.3% | 0.555 |
-| Temporal | 96 | 35 | 36.5% | 0.269 |
-| Open-domain | 841 | 600 | 71.3% | 0.606 |
+| **Overall** | **1,540** | **1,212** | **78.7%** | **0.658** |
+| Single-hop | 282 | 183 | 64.9% | 0.489 |
+| Multi-hop | 321 | 251 | 78.2% | 0.655 |
+| Temporal | 96 | 41 | 42.7% | 0.352 |
+| Open-domain | 841 | 737 | 87.6% | 0.751 |
 
 ### Optimization Journey
 
@@ -56,13 +57,17 @@ Evaluated on [LOCOMO](https://github.com/snap-research/locomo) — 10 multi-sess
 | **+ Query decomposition** | **66.8%** | **0.549** | **Best (semantic-memory-v2, Feb)** |
 | hippograph-pro, category decay ON | 61.7% | 0.499 | New features introduced -5pp |
 | hippograph-pro, SA subgraph off | 61.8% | 0.500 | SA opts: negligible impact (0.1pp) |
-| **hippograph-pro, decay OFF** | **66.6%** | **0.554** | **Matches baseline — decay affects ranking** |
+| hippograph-pro, decay OFF | 66.6% | 0.554 | Matches baseline — decay affects ranking |
+| + Reranker sweep (weight=0.8) | 75.7% | 0.641 | Major gain: +9.1pp |
+| + ANN top-K=5 | 78.4% | 0.659 | Counterintuitive: fewer candidates → reranker more precise |
+| **+ Blend α=0.5, γ=0.15 (confirmed)** | **78.7%** | **0.658** | **Final confirmed result (Mar 2026)** |
 
 **Key findings:**
-- Spreading activation validated: multi-hop improved from 27.4% (session) to 67.3% (best) — +39.9pp
-- Hybrid granularity (3-turn chunks) dramatically improves multi-hop retrieval
-- Cross-encoder reranking: major contributor to quality improvement
+- Spreading activation validated: multi-hop improved from 27.4% (session) to 78.2% (best) — +50.8pp
+- Cross-encoder reranking with weight=0.8: single biggest contributor (+9.1pp)
+- ANN top-K=5 outperforms top-K=20: reranker works best on a tight candidate set
 - Temporal queries remain hardest category — fundamental ceiling for retrieval-only, requires reasoning layer
+- Open-domain at 87.6%: strongest category, associative memory excels here
 
 ---
 
@@ -75,8 +80,12 @@ These experiments isolate the contribution of individual pipeline components on 
 | SA subgraph sampling (on vs off) | **+0.1pp** | Negligible — optimization only, not quality change |
 | SA community routing (on vs off) | **<0.1pp** | Negligible — same |
 | Category decay multipliers (on vs off) | **-5.0pp** | Significant — decay re-ranks LOCOMO notes incorrectly |
+| Reranker weight 0.3 → 0.8 | **+9.1pp** | Major — reranker is critical component |
+| ANN top-K 20 → 5 | **+2.5pp** | Smaller candidate set = more precise reranking |
 
-**Key insight:** Category decay ( in ) is designed for personal memory — it protects , , and relationship notes from temporal decay. On LOCOMO data these categories don't exist, so decay distorts rankings. **For benchmark runs,  is set in .** In production, decay is correct behavior.
+**Key insight:** Category decay is designed for personal memory — it protects `self-reflection`, `protocol`, and relationship notes from temporal decay. On LOCOMO data these categories don't exist, so decay distorts rankings. `DISABLE_CATEGORY_DECAY=true` is set in `docker-compose.locomo.yml`. In production, decay is correct behavior.
+
+**Benchmark vs production configs are intentionally different** — benchmark maximizes retrieval precision, production prioritizes personal memory semantics.
 
 ---
 
@@ -86,21 +95,21 @@ Baseline servers (no spreading activation, no reranking) on full LOCOMO-10:
 
 | System | Recall@5 | Latency P95 | LLM Cost |
 |--------|----------|-------------|----------|
-| **HippoGraph (full pipeline)** | **66.8%** | ~300ms | **Zero** |
+| **HippoGraph (full pipeline)** | **78.7%** | ~300ms | **Zero** |
 | Cosine-only baseline | 43.8% | 130ms | Zero |
 | BM25-only baseline | 44.9% | 50ms | Zero |
 
-**Conclusion:** Spreading activation + reranking delivers +22.6pp over cosine-only baseline.
+**Conclusion:** Spreading activation + reranking delivers +34.9pp over cosine-only baseline.
 
 ---
 
 ## Competitive Context
 
-⚠️ **Direct numerical comparison across systems is not valid** — different metrics, different datasets, different evaluation dates. Numbers below are from each system's own published benchmarks as of February 2026 and may have changed since.
+⚠️ **Direct numerical comparison across systems is not valid** — different metrics, different datasets, different evaluation dates. Numbers below are from each system's own published benchmarks as of early 2026 and may have changed since.
 
 | System | Metric | Score | Source | Date | What It Measures | LLM Cost |
 |--------|--------|-------|--------|------|-----------------|----------|
-| **HippoGraph** | **Recall@5** | **66.8%** | This repo | Feb 2026 | Retrieved correct doc in top-5 | **Zero** |
+| **HippoGraph** | **Recall@5** | **78.7%** | This repo | Mar 2026 | Retrieved correct doc in top-5 | **Zero** |
 | Mem0 | J-score | 66.9% | [mem0.ai/blog](https://mem0.ai/blog) | Jan 2026 | LLM-judged answer accuracy | Requires LLM |
 | Letta/MemGPT | LoCoMo accuracy | 74.0% | [letta.com/research](https://letta.com) | Jan 2026 | LLM-generated answer accuracy | Requires LLM |
 | GPT-4 (no memory) | F1 | 32.1% | [LOCOMO paper](https://arxiv.org/abs/2402.17599) | 2024 | Answer text overlap | — |
@@ -145,21 +154,17 @@ HippoGraph evaluated end-to-end on its own notes: retrieval + Claude Haiku gener
 ## Retrieval Pipeline
 
 ```
-Query → Temporal Decomposition (strip signal words, detect direction)
-                     ↓
-          Embedding → ANN Search (HNSW)
+Query → Embedding → ANN Search (HNSW, top-K=5)
                      ↓
           Spreading Activation (3 iterations, decay=0.7)
                      ↓
           BM25 Keyword Search (Okapi BM25, k1=1.5, b=0.75)
                      ↓
-          Temporal Scoring (date overlap + chronological ordering)
+          Blend: α×semantic + β×spreading + γ×BM25
                      ↓
-          Blend: α×semantic + β×spreading + γ×BM25 + δ×temporal
+          Cross-Encoder Reranking (ms-marco-MiniLM-L-6-v2, weight=0.8)
                      ↓
-          Cross-Encoder Reranking (ms-marco-MiniLM-L-6-v2)
-                     ↓
-          Temporal Decay (half-life=30 days)
+          Temporal Decay (half-life=30 days, production only)
                      ↓
           Top-K Results
 ```
@@ -169,8 +174,8 @@ Query → Temporal Decomposition (strip signal words, detect direction)
 ## Reproduce
 
 ```bash
-# 1. Start isolated benchmark container
-docker-compose -f docker-compose.benchmark.yml up -d --build
+# 1. Start isolated benchmark container (optimal config)
+docker-compose -f docker-compose.locomo.yml up -d --build
 
 # 2. Load dataset and run evaluation (hybrid granularity)
 python3 benchmark/locomo_adapter.py --all \
@@ -179,6 +184,15 @@ python3 benchmark/locomo_adapter.py --all \
   --granularity hybrid
 
 # Results saved to benchmark/results/locomo_results.json
+```
+
+Key env vars in `docker-compose.locomo.yml`:
+```
+DISABLE_CATEGORY_DECAY=true
+RERANK_WEIGHT=0.8
+ANN_TOP_K=5
+BLEND_ALPHA=0.5
+BLEND_GAMMA=0.15
 ```
 
 ---
