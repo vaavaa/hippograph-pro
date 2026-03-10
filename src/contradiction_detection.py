@@ -44,7 +44,43 @@ NEGATION_PATTERNS_RU = [
     r'\bпо факту\b', r'\bна самом деле\b',
 ]
 
-ALL_NEGATION_PATTERNS = NEGATION_PATTERNS_EN + NEGATION_PATTERNS_RU
+NEGATION_PATTERNS_DE = [
+    r'nicht mehr', r'kein(?:e)?\s+mehr', r'nicht länger',
+    r'geändert', r'aktualisiert', r'ersetzt',
+    r'jetzt', r'nun', r'inzwischen',
+    r'früher', r'vorher', r'ehemals',
+    r'korrektur', r'eigentlich', r'tatsächlich',
+]
+
+NEGATION_PATTERNS_ES = [
+    r'ya no', r'no más', r'no longer',
+    r'cambió', r'actualizó', r'reemplazó',
+    r'ahora', r'actualmente',
+    r'antes', r'anteriormente', r'solía',
+    r'corrección', r'en realidad', r'de hecho',
+]
+
+NEGATION_PATTERNS_FR = [
+    r'ne plus', r'plus du tout', r'n.est plus',
+    r'changé', r'mis à jour', r'remplacé',
+    r'maintenant', r'désormais',
+    r'avant', r'auparavant', r'anciennement',
+    r'correction', r'en réalité', r'en fait',
+]
+
+NEGATION_PATTERNS_PT = [
+    r'já não', r'não mais',
+    r'mudou', r'atualizó', r'substituíu',
+    r'agora', r'atualmente',
+    r'antes', r'anteriormente',
+    r'correção', r'na verdade', r'de fato',
+]
+
+ALL_NEGATION_PATTERNS = (
+    NEGATION_PATTERNS_EN + NEGATION_PATTERNS_RU +
+    NEGATION_PATTERNS_DE + NEGATION_PATTERNS_ES +
+    NEGATION_PATTERNS_FR + NEGATION_PATTERNS_PT
+)
 
 # Categories where semantic proximity alone signals identity conflict
 # No lexical patterns required - two similar statements about self = potential conflict

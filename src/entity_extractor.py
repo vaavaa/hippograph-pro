@@ -2,7 +2,7 @@
 """
 Enhanced Entity Extractor for Neural Memory Graph
 Supports regex and spaCy backends with confidence scores and noise filtering.
-Multilingual: English (en_core_web_sm) + Russian/mixed (xx_ent_wiki_sm)
+Multilingual: English (en_core_web_sm) + any other language (xx_ent_wiki_sm)
 """
 import re
 import os
@@ -146,27 +146,43 @@ SPACY_LABEL_MAP = {
     "MISC": "concept",
 }
 
+# Unicode ranges for non-Latin scripts → use multilingual model
+_NON_LATIN_RANGES = [
+    (0x0400, 0x052F),   # Cyrillic (Russian, Ukrainian, Bulgarian, etc.)
+    (0x0370, 0x03FF),   # Greek
+    (0x0600, 0x06FF),   # Arabic
+    (0x0900, 0x097F),   # Devanagari (Hindi)
+    (0x4E00, 0x9FFF),   # CJK Unified Ideographs (Chinese/Japanese Kanji)
+    (0x3040, 0x309F),   # Hiragana (Japanese)
+    (0x30A0, 0x30FF),   # Katakana (Japanese)
+    (0xAC00, 0xD7AF),   # Hangul (Korean)
+    (0x0E00, 0x0E7F),   # Thai
+    (0x0400, 0x04FF),   # Cyrillic extended
+]
+
 
 def detect_language(text: str) -> str:
     """
-    Detect primary language using Unicode character ranges.
-    Returns 'ru' if >30% Cyrillic characters, 'en' otherwise.
-    No external dependencies needed.
+    Detect whether text is primarily English or non-English.
+    Returns 'en' for English/Latin-script text, 'xx' for everything else.
+    'xx' routes to xx_ent_wiki_sm (spaCy multilingual model, 50+ languages).
+    No external dependencies — pure Unicode range detection.
     """
     if not text:
         return "en"
-    # Count Cyrillic vs Latin characters (ignore digits, punctuation, spaces)
-    cyrillic = 0
+    non_latin = 0
     latin = 0
     for ch in text:
-        if '\u0400' <= ch <= '\u04FF' or '\u0500' <= ch <= '\u052F':
-            cyrillic += 1
+        cp = ord(ch)
+        if any(lo <= cp <= hi for lo, hi in _NON_LATIN_RANGES):
+            non_latin += 1
         elif 'A' <= ch <= 'Z' or 'a' <= ch <= 'z':
             latin += 1
-    total = cyrillic + latin
+    total = non_latin + latin
     if total == 0:
         return "en"
-    return "ru" if (cyrillic / total) > 0.3 else "en"
+    # >20% non-Latin characters → use multilingual model
+    return "xx" if (non_latin / total) > 0.2 else "en"
 
 
 def is_valid_entity(text: str) -> bool:
@@ -183,7 +199,7 @@ def is_valid_entity(text: str) -> bool:
         return False
     if len(normalized) == 1 and normalized not in {'i', 'a'}:
         return False
-    # Filter multi-word Russian phrases that are clearly not entities
+    # Filter multi-word phrases that are clearly not entities
     # (more than 4 words is almost never a real entity)
     if len(normalized.split()) > 4:
         return False
@@ -200,20 +216,22 @@ def normalize_entity(text: str) -> str:
 def _get_spacy_model(lang: str):
     """
     Load and cache the appropriate spaCy model based on language.
-    English → en_core_web_sm (better for English NER)
-    Russian/mixed → xx_ent_wiki_sm (multilingual NER)
+    English → en_core_web_sm (better NER for English)
+    Any other language → xx_ent_wiki_sm (multilingual, 50+ languages)
     """
     cache_attr = f"_nlp_{lang}"
     if not hasattr(_get_spacy_model, cache_attr):
         import spacy
-        if lang == "ru":
+        if lang == "en":
+            model = spacy.load("en_core_web_sm")
+        else:
+            # xx_ent_wiki_sm covers: Russian, German, Spanish, French,
+            # Portuguese, Chinese, Japanese, Arabic, Dutch, Polish, and more
             try:
                 model = spacy.load("xx_ent_wiki_sm")
             except OSError:
                 print("⚠️  xx_ent_wiki_sm not found, falling back to en_core_web_sm")
                 model = spacy.load("en_core_web_sm")
-        else:
-            model = spacy.load("en_core_web_sm")
         setattr(_get_spacy_model, cache_attr, model)
     return getattr(_get_spacy_model, cache_attr)
 
