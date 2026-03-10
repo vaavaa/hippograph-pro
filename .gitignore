@@ -94,3 +94,8 @@ benchmarks/
 ROADMAP_PRO.md
 src/test_*.py
 src/_*.py
+
+# Recovery & restore docs (contain private keys and infrastructure details)
+RESTORE.md
+*_RESTORE.md
+RECOVERY.md
