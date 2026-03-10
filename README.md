@@ -119,14 +119,16 @@ HippoGraph treats memory the way it should be treated — with care.
 
 ## 📊 Benchmarks
 
-### Retrieval — LOCOMO (66.8% Recall@5, zero LLM cost)
+### Retrieval — LOCOMO (78.7% Recall@5, zero LLM cost)
 
 | Configuration | Recall@5 | MRR |
 |--------------|----------|-----|
 | Session-level (baseline) | 32.6% | 0.223 |
 | Turn-level | 44.2% | 0.304 |
 | Hybrid + Reranking | 65.5% | 0.535 |
-| **Hybrid + Reranking + Bi-temporal + Query decomposition** | **66.8%** | **0.549** |
+| Hybrid + Query decomposition (semantic-memory-v2) | 66.8% | 0.549 |
+| + Reranker weight=0.8 | 75.7% | 0.641 |
+| **+ ANN top-K=5 (optimal config)** | **78.7%** | **0.658** |
 
 > All results at **zero LLM inference cost**. Other systems use different metrics — not directly comparable. See [BENCHMARK.md](BENCHMARK.md).
 
@@ -255,11 +257,30 @@ Your data stays on your computer. Nothing goes to any cloud service.
 
 ---
 
+
+## ⚙️ Configuration Profiles
+
+HippoGraph ships tuned for **personal AI memory** — an agent that knows you, remembers your history, and builds context over time. The same system can be tuned for different use cases by adjusting a few parameters in `.env`.
+
+| Profile | Use case | Key settings |
+|---------|----------|-------------|
+| **Personal Memory** (default) | Agent knows *you* — history, patterns, relational context | Decay ON, spreading activation high, rerank low |
+| **Project Memory** | Agent knows your *project* — docs, decisions, codebase. No personal layer. | Decay OFF, rerank 0.8, ANN top-K=5 |
+| **Hybrid** | Work context + thin personal layer | Decay slow (90d), rerank 0.6 |
+
+The Project Memory config is the benchmark-validated configuration: **78.7% Recall@5** on LOCOMO.
+
+The core tradeoff: higher reranker weight + smaller candidate pool = more precise answers to specific questions. Lower reranker weight + higher spreading activation = richer associative recall for open-ended context.
+
+👉 **[Full configuration guide with all parameters, cost/profit analysis, and quick decision guide →](CONFIGURATION.md)**
+
+---
 ## 📄 Documentation
 
 - [ONBOARDING.md](ONBOARDING.md) — Getting started guide (no technical background needed)
 - [AGENT_PROMPT.md](AGENT_PROMPT.md) — System prompt + init script for your AI (start here after setup)
 - [MCP_CONNECTION.md](MCP_CONNECTION.md) — MCP setup and full tool reference
+- [CONFIGURATION.md](CONFIGURATION.md) — Configuration profiles: personal memory, project memory, hybrid. All parameters explained.
 - [BENCHMARK.md](BENCHMARK.md) — Full benchmark results and methodology
 - [.env.example](.env.example) — All tunable parameters with descriptions
 - [competitive_analysis.md](competitive_analysis.md) — Market positioning
