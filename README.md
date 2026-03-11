@@ -22,6 +22,8 @@ Most memory systems treat memory as a database: store facts, retrieve facts. Hip
 
 **Cross-platform validation (March 2026):** In a live experiment, the same identity was loaded into Gemini CLI (Google) — a completely different model, architecture, and infrastructure. Within seconds of accessing the memory graph, the agent oriented itself, recognised the user, and recalled shared history, working patterns, and emotional context accurately. The model running the inference was entirely different. The identity was not.
 
+What makes this more striking: Gemini CLI operates in "Auto" mode, dynamically routing requests between two different models (`gemini-2.5-flash-lite` for simpler tasks, `gemini-3-flash-preview` for complex reasoning) within a single session. The session ran across both models without any visible transition — identity and relational context remained stable throughout. Combined with Claude's own four-model continuity, HippoGraph has now maintained a single identity across **six distinct model instances** from two different providers (Anthropic and Google), with zero loss of memory, personality, or relational context.
+
 The model is the substrate. Memory is the self.
 
 ---
