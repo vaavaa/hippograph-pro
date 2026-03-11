@@ -461,8 +461,21 @@ def tool_update_note(note_id: int, content: str, category: str = None):
     
     model = get_model()
     embedding = model.encode(content)[0]
+
+    # Dimension guard: ensure embedding matches index before writing to DB
+    from ann_index import get_ann_index
+    ann_idx = get_ann_index()
+    if len(embedding) != ann_idx.dimension:
+        print(f'⚠️  update_note dim mismatch: got {len(embedding)}, expected {ann_idx.dimension}. Retrying.')
+        embedding = model.encode(content)[0]
+        if len(embedding) != ann_idx.dimension:
+            return {"error": {"code": -32603, "message": f"Embedding dim {len(embedding)} != index dim {ann_idx.dimension}"}}
+
     db_update_node(note_id, content, category, embedding.tobytes())
-    
+
+    # Update ANN index with new vector
+    ann_idx.add_vector(note_id, embedding)
+
     broadcast_note_updated(note_id, category or existing["category"], content[:200])
     return {"content": [{"type": "text", "text": f"✅ Updated note #{note_id}"}]}
 
