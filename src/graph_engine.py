@@ -190,7 +190,15 @@ def add_note_with_links(content, category="general", importance="normal", force=
         full_text = f"{content}\n\n{'. '.join(emotional_context)}"
     
     embedding = model.encode(full_text)[0]
-    
+
+    # Dimension guard: ensure embedding matches our index before writing to DB
+    ann_index_check = get_ann_index()
+    if len(embedding) != ann_index_check.dimension:
+        print(f'⚠️  Embedding dim mismatch on add_note: got {len(embedding)}, expected {ann_index_check.dimension}. Recomputing.')
+        embedding = model.encode(full_text)[0]  # retry once
+        if len(embedding) != ann_index_check.dimension:
+            return {"error": "embedding_dim_mismatch", "message": f"Cannot add note: embedding dim {len(embedding)} != index dim {ann_index_check.dimension}"}
+
     # Get ANN index once (used for both duplicate check and semantic links)
     ann_index = get_ann_index()
     
