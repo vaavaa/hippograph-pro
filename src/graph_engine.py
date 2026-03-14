@@ -277,11 +277,40 @@ def add_note_with_links(content, category="general", importance="normal", force=
         if sim >= SIMILAR_THRESHOLD: similar_warnings.append({"id": rid, "similarity": round(sim, 4)})
 
     
+    # TEMPORAL EDGES: connect to ±3 nearest nodes by t_event_start
+    temporal_links = 0
+    try:
+        node_t_event = None
+        with get_connection(db_path) as _tc:
+            _row = _tc.execute('SELECT t_event_start FROM nodes WHERE id=?', (node_id,)).fetchone()
+            if _row:
+                node_t_event = _row[0]
+        if node_t_event:
+            with get_connection(db_path) as _tc:
+                _neighbors = _tc.execute(
+                    """SELECT id, t_event_start FROM nodes
+                       WHERE t_event_start IS NOT NULL AND id != ?
+                       ORDER BY ABS(julianday(t_event_start) - julianday(?)) ASC
+                       LIMIT 6""",
+                    (node_id, node_t_event)
+                ).fetchall()
+            for _nid, _nt in _neighbors:
+                if _nt < node_t_event:
+                    create_edge(_nid, node_id, weight=0.4, edge_type='TEMPORAL_BEFORE')
+                    create_edge(node_id, _nid, weight=0.4, edge_type='TEMPORAL_AFTER')
+                else:
+                    create_edge(node_id, _nid, weight=0.4, edge_type='TEMPORAL_BEFORE')
+                    create_edge(_nid, node_id, weight=0.4, edge_type='TEMPORAL_AFTER')
+                temporal_links += 1
+    except Exception as _te:
+        print(f'Temporal edge creation skipped: {_te}')
+
     result = {
         "node_id": node_id,
         "entities": entities,
         "entity_links": len(set(entity_links)),
-        "semantic_links": len(semantic_links)
+        "semantic_links": len(semantic_links),
+        "temporal_links": temporal_links
     }
     
     if similar_warnings:
@@ -446,6 +475,10 @@ def search_with_activation(query, limit=5, iterations=ACTIVATION_ITERATIONS, dec
                 
                 # Spread activation through edge
                 spread = activation * edge_weight * decay
+                
+                # VARIANT C: Temporal edge boost
+                if query_is_temporal and edge_type in ('TEMPORAL_BEFORE', 'TEMPORAL_AFTER'):
+                    spread *= 1.5
                 
                 # Add to neighbor's activation
                 new_activations[neighbor_id] = new_activations.get(neighbor_id, 0) + spread
