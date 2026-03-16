@@ -481,10 +481,6 @@ def search_with_activation(query, limit=5, iterations=ACTIVATION_ITERATIONS, dec
                 if query_is_temporal and edge_type in ('TEMPORAL_BEFORE', 'TEMPORAL_AFTER'):
                     spread *= 1.5
 
-                # CONTRADICTS edges: inhibitory signal (negative spread)
-                if edge_type == 'CONTRADICTS':
-                    spread = -abs(spread)
-
                 # Add to neighbor's activation
                 new_activations[neighbor_id] = new_activations.get(neighbor_id, 0) + spread
         
@@ -654,6 +650,18 @@ def search_with_activation(query, limit=5, iterations=ACTIVATION_ITERATIONS, dec
         if ec > 20:  # Only penalize true hub notes (25-42 entities)
             blended[node_id] *= 20.0 / ec  # Linear penalty: 0.8 at 25, 0.48 at 42
     
+    # Step 5b: CONTRADICTS penalty
+    # If a high-scoring note contradicts this note, suppress it.
+    # Biological analogy: cognitive dissonance actively inhibits contradicted memories.
+    # Penalty: multiply score by 0.5 for each active contradicting note (score > 0.3).
+    graph_cache = get_graph_cache()
+    for node_id in list(blended.keys()):
+        for neighbor_id, _, edge_type in graph_cache.get_neighbors(node_id):
+            if edge_type == 'CONTRADICTS' and neighbor_id in blended:
+                if blended[neighbor_id] > 0.3:  # Only suppress if contradicting note is active
+                    blended[node_id] *= 0.5
+                    break  # One active contradiction is enough
+
     # Step 6: PageRank boost (informational only, not applied to scoring)
     # Testing showed PAGERANK_BOOST > 0 causes P@5 regression
     # PageRank is available via neural_stats for analysis
