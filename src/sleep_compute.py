@@ -685,6 +685,94 @@ def restore_snapshot(snapshot_path, db_path):
 
 
 
+
+def step_generalizes_instantiates(db_path, dry_run=False):
+    """
+    Create GENERALIZES / INSTANTIATES edges between concrete experiences and abstract rules.
+    Biological analogy: prefrontal cortex abstracts patterns from specific events.
+
+    GENERALIZES: concrete -> abstract (lesson -> protocol)
+    INSTANTIATES: abstract -> concrete (protocol -> lesson, reverse direction)
+
+    Rules:
+    - Cosine similarity >= 0.65 (same topic)
+    - Max 3 edges per note (top by similarity)
+    - Skip if edge already exists
+    """
+    import sqlite3
+    import numpy as np
+
+    CONCRETE_CATEGORIES = {
+        'critical-lesson', 'crisis', 'debug', 'debug-lesson',
+        'session-summary', 'critical-insight', 'self-correction',
+    }
+    ABSTRACT_CATEGORIES = {
+        'protocol', 'critical-protocol', 'skill', 'technical-skill',
+        'architecture-decision', 'design',
+    }
+    SIMILARITY_THRESHOLD = 0.65
+    MAX_EDGES_PER_NODE = 3
+
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute("""
+        SELECT id, category, embedding FROM nodes
+        WHERE embedding IS NOT NULL
+        AND category IN ({concrete} , {abstract})
+    """.format(
+        concrete=','.join('?' * len(CONCRETE_CATEGORIES)),
+        abstract=','.join('?' * len(ABSTRACT_CATEGORIES)),
+    ), list(CONCRETE_CATEGORIES) + list(ABSTRACT_CATEGORIES)).fetchall()
+    conn.close()
+
+    if not rows:
+        return {'edges_created': 0, 'pairs_checked': 0}
+
+    # Split by type
+    concrete = [(r[0], r[1], np.frombuffer(r[2], dtype=np.float32)) for r in rows if r[1] in CONCRETE_CATEGORIES]
+    abstract = [(r[0], r[1], np.frombuffer(r[2], dtype=np.float32)) for r in rows if r[1] in ABSTRACT_CATEGORIES]
+
+    def cosine(a, b):
+        na, nb = np.linalg.norm(a), np.linalg.norm(b)
+        if na == 0 or nb == 0:
+            return 0.0
+        return float(np.dot(a, b) / (na * nb))
+
+    # Find pairs above threshold
+    candidates_gen = {}   # concrete_id -> [(sim, abstract_id)]
+    candidates_inst = {}  # abstract_id -> [(sim, concrete_id)]
+    pairs_checked = 0
+
+    for c_id, c_cat, c_emb in concrete:
+        for a_id, a_cat, a_emb in abstract:
+            sim = cosine(c_emb, a_emb)
+            pairs_checked += 1
+            if sim >= SIMILARITY_THRESHOLD:
+                candidates_gen.setdefault(c_id, []).append((sim, a_id))
+                candidates_inst.setdefault(a_id, []).append((sim, c_id))
+
+    if dry_run:
+        gen = sum(min(len(v), MAX_EDGES_PER_NODE) for v in candidates_gen.values())
+        inst = sum(min(len(v), MAX_EDGES_PER_NODE) for v in candidates_inst.values())
+        return {'edges_created': 0, 'pairs_checked': pairs_checked, 'would_create': gen + inst}
+
+    from database import create_edge
+    created = 0
+    seen = set()
+
+    for c_id, pairs in candidates_gen.items():
+        for sim, a_id in sorted(pairs, reverse=True)[:MAX_EDGES_PER_NODE]:
+            pair = (c_id, a_id, 'GENERALIZES')
+            if pair in seen:
+                continue
+            seen.add(pair)
+            create_edge(c_id, a_id, weight=round(sim, 3), edge_type='GENERALIZES')
+            create_edge(a_id, c_id, weight=round(sim, 3), edge_type='INSTANTIATES')
+            created += 2
+
+    print(f"  GENERALIZES/INSTANTIATES: {created} edges from {pairs_checked} pairs checked")
+    return {'edges_created': created, 'pairs_checked': pairs_checked}
+
+
 def step_emotional_resonance(db_path, dry_run=False):
     """
     Create EMOTIONAL_RESONANCE edges between notes sharing emotional tone tags.
@@ -784,6 +872,12 @@ def run_all(db_path, dry_run=False):
     except Exception as e:
         print(f"  ERROR in emotional resonance: {e}")
         results['emotional_resonance'] = {"error": str(e)}
+
+    try:
+        results['generalizes_instantiates'] = step_generalizes_instantiates(db_path, dry_run)
+    except Exception as e:
+        print(f"  ERROR in generalizes/instantiates: {e}")
+        results['generalizes_instantiates'] = {"error": str(e)}
 
     try:
         results['pagerank'] = step_pagerank(db_path, dry_run)

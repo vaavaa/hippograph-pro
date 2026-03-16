@@ -327,3 +327,107 @@ class TestEmotionalResonance:
         from sleep_compute import step_emotional_resonance
         result = step_emotional_resonance(db, dry_run=True)
         assert result['pairs_checked'] == 1
+
+# ─────────────────────────────────────────────
+# GENERALIZES / INSTANTIATES edges
+# ─────────────────────────────────────────────
+
+class TestGeneralizesInstantiates:
+
+    def _make_db(self, tmp_path, notes):
+        import sqlite3, os, numpy as np
+        db = os.path.join(str(tmp_path), 'test_gen.db')
+        conn = sqlite3.connect(db)
+        conn.execute("""CREATE TABLE nodes (
+            id INTEGER PRIMARY KEY, content TEXT, category TEXT,
+            timestamp TEXT, embedding BLOB, last_accessed TEXT,
+            access_count INTEGER DEFAULT 0, importance TEXT DEFAULT 'normal',
+            emotional_tone TEXT, emotional_intensity INTEGER DEFAULT 5,
+            emotional_reflection TEXT, t_event_start TEXT,
+            t_event_end TEXT, temporal_expressions TEXT)"""
+        )
+        conn.execute("""CREATE TABLE edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id INTEGER, target_id INTEGER,
+            weight REAL DEFAULT 0.5, edge_type TEXT DEFAULT 'semantic',
+            created_at TEXT,
+            UNIQUE(source_id, target_id, edge_type))"""
+        )
+        for note_id, category, emb_vec in notes:
+            emb = np.array(emb_vec, dtype=np.float32).tobytes()
+            conn.execute(
+                'INSERT INTO nodes (id, content, category, embedding) VALUES (?, ?, ?, ?)',
+                (note_id, f'note {note_id}', category, emb)
+            )
+        conn.commit()
+        conn.close()
+        return db
+
+    def _similar_vec(self):
+        """Return two similar 384-dim vectors (cosine > 0.65)."""
+        import numpy as np
+        base = np.random.default_rng(42).random(384).astype(np.float32)
+        noise = np.random.default_rng(7).random(384).astype(np.float32) * 0.1
+        return base.tolist(), (base + noise).tolist()
+
+    def test_creates_generalizes_and_instantiates(self, tmp_path):
+        """Similar concrete+abstract pair: step reports 2 edges (GENERALIZES + INSTANTIATES)."""
+        import sys
+        sys.path.insert(0, '/app/src')
+        v1, v2 = self._similar_vec()
+        db = self._make_db(tmp_path, [
+            (1, 'critical-lesson', v1),
+            (2, 'protocol', v2),
+        ])
+        from sleep_compute import step_generalizes_instantiates
+        # dry_run=True to avoid DB_PATH coupling; would_create confirms pair found
+        result = step_generalizes_instantiates(db, dry_run=True)
+        assert result['pairs_checked'] == 1
+        assert result['would_create'] == 2  # GENERALIZES + INSTANTIATES
+        # Verify direction logic: concrete→abstract = GENERALIZES
+        result2 = step_generalizes_instantiates(db, dry_run=False)
+        assert result2['edges_created'] == 2
+
+    def test_dry_run_creates_no_edges(self, tmp_path):
+        import sys, sqlite3
+        sys.path.insert(0, '/app/src')
+        v1, v2 = self._similar_vec()
+        db = self._make_db(tmp_path, [
+            (1, 'critical-lesson', v1),
+            (2, 'protocol', v2),
+        ])
+        from sleep_compute import step_generalizes_instantiates
+        result = step_generalizes_instantiates(db, dry_run=True)
+        assert result['edges_created'] == 0
+        conn = sqlite3.connect(db)
+        count = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+        conn.close()
+        assert count == 0
+
+    def test_dissimilar_pair_no_edges(self, tmp_path):
+        """Orthogonal vectors (cosine=0) get no edges."""
+        import sys, sqlite3, numpy as np
+        sys.path.insert(0, '/app/src')
+        # Orthogonal unit vectors: cosine = 0.0, well below 0.65 threshold
+        v1 = np.zeros(384, dtype=np.float32); v1[0] = 1.0
+        v2 = np.zeros(384, dtype=np.float32); v2[1] = 1.0
+        db = self._make_db(tmp_path, [
+            (1, 'critical-lesson', v1.tolist()),
+            (2, 'protocol', v2.tolist()),
+        ])
+        from sleep_compute import step_generalizes_instantiates
+        result = step_generalizes_instantiates(db, dry_run=False)
+        assert result['edges_created'] == 0
+
+    def test_same_category_no_edges(self, tmp_path):
+        """Two concrete notes do NOT get GENERALIZES edges."""
+        import sys, sqlite3
+        sys.path.insert(0, '/app/src')
+        v1, v2 = self._similar_vec()
+        db = self._make_db(tmp_path, [
+            (1, 'critical-lesson', v1),
+            (2, 'critical-lesson', v2),  # both concrete
+        ])
+        from sleep_compute import step_generalizes_instantiates
+        result = step_generalizes_instantiates(db, dry_run=False)
+        assert result['edges_created'] == 0
