@@ -684,6 +684,65 @@ def restore_snapshot(snapshot_path, db_path):
         return False
 
 
+
+def step_emotional_resonance(db_path, dry_run=False):
+    """
+    Create EMOTIONAL_RESONANCE edges between notes sharing emotional tone tags.
+    Biological analogy: amygdala connects memories by emotional similarity,
+    independent of semantic content.
+    Rules: min 2 shared tags, Jaccard weight, max 5 edges per note.
+    """
+    import sqlite3
+    from itertools import combinations
+
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute("""
+        SELECT id, emotional_tone FROM nodes
+        WHERE emotional_tone IS NOT NULL AND emotional_tone != ''
+    """).fetchall()
+    conn.close()
+
+    if not rows:
+        return {'edges_created': 0, 'pairs_checked': 0}
+
+    node_tags = {}
+    for node_id, tone in rows:
+        tags = {t.strip().lower() for t in tone.split(',') if t.strip()}
+        if tags:
+            node_tags[node_id] = tags
+
+    candidates = {}
+    pairs_checked = 0
+    for (id_a, tags_a), (id_b, tags_b) in combinations(node_tags.items(), 2):
+        shared = tags_a & tags_b
+        if len(shared) < 2:
+            continue
+        pairs_checked += 1
+        weight = round(len(shared) / len(tags_a | tags_b), 3)
+        candidates.setdefault(id_a, []).append((weight, id_b))
+        candidates.setdefault(id_b, []).append((weight, id_a))
+
+    if dry_run:
+        total = sum(min(len(v), 5) for v in candidates.values()) // 2
+        return {'edges_created': 0, 'pairs_checked': pairs_checked, 'would_create': total}
+
+    from database import create_edge
+    created = 0
+    seen = set()
+    for node_id, pairs in candidates.items():
+        for weight, other_id in sorted(pairs, reverse=True)[:5]:
+            pair = (min(node_id, other_id), max(node_id, other_id))
+            if pair in seen:
+                continue
+            seen.add(pair)
+            create_edge(node_id, other_id, weight=weight, edge_type='EMOTIONAL_RESONANCE')
+            create_edge(other_id, node_id, weight=weight, edge_type='EMOTIONAL_RESONANCE')
+            created += 1
+
+    print(f"  EMOTIONAL_RESONANCE: {created} edges from {pairs_checked} resonant pairs")
+    return {'edges_created': created, 'pairs_checked': pairs_checked}
+
+
 def run_all(db_path, dry_run=False):
     """Run all sleep-time compute steps."""
     t0 = time.time()
@@ -719,6 +778,12 @@ def run_all(db_path, dry_run=False):
     except Exception as e:
         print(f"  ERROR in contradiction detection: {e}")
         results['contradiction_detection'] = {"error": str(e)}
+
+    try:
+        results['emotional_resonance'] = step_emotional_resonance(db_path, dry_run)
+    except Exception as e:
+        print(f"  ERROR in emotional resonance: {e}")
+        results['emotional_resonance'] = {"error": str(e)}
 
     try:
         results['pagerank'] = step_pagerank(db_path, dry_run)
