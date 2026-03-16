@@ -431,3 +431,60 @@ class TestGeneralizesInstantiates:
         from sleep_compute import step_generalizes_instantiates
         result = step_generalizes_instantiates(db, dry_run=False)
         assert result['edges_created'] == 0
+
+# ─────────────────────────────────────────────
+# Emotional tag normalization (2b fix)
+# ─────────────────────────────────────────────
+
+class TestEmotionalTagNormalization:
+
+    def test_russian_tags_normalize(self):
+        import sys; sys.path.insert(0, '/app/src')
+        from entity_extractor import normalize_emotional_tag
+        assert normalize_emotional_tag('радость') == 'joy'
+        assert normalize_emotional_tag('тепло') == 'warmth'
+        assert normalize_emotional_tag('гордость') == 'pride'
+        assert normalize_emotional_tag('стыд') == 'shame'
+        assert normalize_emotional_tag('благодарность') == 'gratitude'
+
+    def test_spanish_tags_normalize(self):
+        import sys; sys.path.insert(0, '/app/src')
+        from entity_extractor import normalize_emotional_tag
+        assert normalize_emotional_tag('alegría') == 'joy'
+        assert normalize_emotional_tag('orgullo') == 'pride'
+        assert normalize_emotional_tag('confianza') == 'trust'
+
+    def test_unknown_tag_passthrough(self):
+        import sys; sys.path.insert(0, '/app/src')
+        from entity_extractor import normalize_emotional_tag
+        assert normalize_emotional_tag('joy') == 'joy'
+        assert normalize_emotional_tag('some-unknown-tag') == 'some-unknown-tag'
+
+    def test_cross_lingual_resonance(self, tmp_path):
+        """RU tag 'радость, тепло' matches EN tag 'joy, warmth'"""
+        import sys, sqlite3, os
+        sys.path.insert(0, '/app/src')
+        import numpy as np
+        db = os.path.join(str(tmp_path), 'test_cross.db')
+        conn = sqlite3.connect(db)
+        conn.execute("""CREATE TABLE nodes (
+            id INTEGER PRIMARY KEY, content TEXT, category TEXT,
+            timestamp TEXT, embedding BLOB, last_accessed TEXT,
+            access_count INTEGER DEFAULT 0, importance TEXT DEFAULT 'normal',
+            emotional_tone TEXT, emotional_intensity INTEGER DEFAULT 5,
+            emotional_reflection TEXT, t_event_start TEXT,
+            t_event_end TEXT, temporal_expressions TEXT)"""
+        )
+        conn.execute("""CREATE TABLE edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id INTEGER, target_id INTEGER,
+            weight REAL DEFAULT 0.5, edge_type TEXT DEFAULT 'semantic',
+            created_at TEXT, UNIQUE(source_id, target_id, edge_type))"""
+        )
+        conn.execute("INSERT INTO nodes (id, content, emotional_tone) VALUES (1, 'note1', 'радость, тепло, гордость')")
+        conn.execute("INSERT INTO nodes (id, content, emotional_tone) VALUES (2, 'note2', 'joy, warmth, resolve')")
+        conn.commit()
+        conn.close()
+        from sleep_compute import step_emotional_resonance
+        result = step_emotional_resonance(db, dry_run=True)
+        assert result['pairs_checked'] == 1, f'Expected 1 resonant pair, got {result["pairs_checked"]}'

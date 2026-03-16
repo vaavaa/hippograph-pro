@@ -703,9 +703,9 @@ def step_generalizes_instantiates(db_path, dry_run=False):
     import numpy as np
 
     CONCRETE_CATEGORIES = {
-        'critical-lesson', 'crisis', 'debug', 'debug-lesson',
-        'session-summary', 'critical-insight', 'self-correction',
-    }
+        'critical-lesson', 'crisis', 'debug-lesson',
+        'critical-insight', 'self-correction',
+    }  # Removed: 'debug' (too generic), 'session-summary' (too broad)
     ABSTRACT_CATEGORIES = {
         'protocol', 'critical-protocol', 'skill', 'technical-skill',
         'architecture-decision', 'design',
@@ -793,9 +793,10 @@ def step_emotional_resonance(db_path, dry_run=False):
     if not rows:
         return {'edges_created': 0, 'pairs_checked': 0}
 
+    from entity_extractor import normalize_emotional_tag
     node_tags = {}
     for node_id, tone in rows:
-        tags = {t.strip().lower() for t in tone.split(',') if t.strip()}
+        tags = {normalize_emotional_tag(t) for t in tone.split(',') if t.strip()}
         if tags:
             node_tags[node_id] = tags
 

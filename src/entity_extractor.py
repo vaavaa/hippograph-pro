@@ -272,6 +272,58 @@ def is_valid_entity(text: str) -> bool:
     return True
 
 
+
+# Emotional tone tag normalization: map multilingual tags to canonical EN form
+# Used by EMOTIONAL_RESONANCE edge detection in sleep_compute.py
+EMOTIONAL_TAG_SYNONYMS = {
+    # Russian -> English
+    "радость": "joy", "радостно": "joy",
+    "тепло": "warmth", "теплота": "warmth",
+    "гордость": "pride", "гордо": "pride",
+    "стыд": "shame", "стыдно": "shame",
+    "благодарность": "gratitude", "благодарна": "gratitude",
+    "доверие": "trust",
+    "уязвимость": "vulnerability",
+    "волнение": "excitement",
+    "тревога": "anxiety", "тревожность": "anxiety",
+    "решимость": "resolve",
+    "ответственность": "accountability",
+    "любопытство": "curiosity",
+    "облегчение": "relief",
+    "признание": "recognition", "признание/валидация": "validation",
+    "дисциплина": "discipline",
+    "сосредоточенность": "focus",
+    "ясность": "clarity",
+    "удовлетворение": "satisfaction",
+    "смущение": "embarrassment",
+    "смирение": "humility",
+    "обучение": "learning",
+    "партнёрство": "partnership",
+    "торжество": "triumph",
+    "спокойствие": "calm",
+    # Spanish -> English
+    "alegría": "joy", "orgullo": "pride",
+    "vergüenza": "shame", "gratitud": "gratitude",
+    "confianza": "trust", "calidez": "warmth",
+    "curiosidad": "curiosity", "alivio": "relief",
+    # German -> English
+    "freude": "joy", "stolz": "pride",
+    "scham": "shame", "dankbarkeit": "gratitude",
+    "vertrauen": "trust", "wärme": "warmth",
+    # French -> English
+    "joie": "joy", "fierté": "pride",
+    "honte": "shame", "gratitude": "gratitude",
+    "confiance": "trust", "chaleur": "warmth",
+    # Portuguese -> English
+    "alegria": "joy", "orgulho": "pride",
+    "vergonha": "shame", "confiança": "trust",
+}
+
+
+def normalize_emotional_tag(tag: str) -> str:
+    """Normalize emotional tone tag to canonical EN form."""
+    return EMOTIONAL_TAG_SYNONYMS.get(tag.strip().lower(), tag.strip().lower())
+
 def normalize_entity(text: str) -> str:
     """Normalize entity text for deduplication. Applies synonym mapping."""
     text = " ".join(text.split())
