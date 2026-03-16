@@ -191,6 +191,18 @@ HippoGraph treats memory the way it should be treated — with care.
 
 > GPT-4 without memory: F1=32.1%. HippoGraph +6.6pp with zero retrieval cost.
 
+### Personal Continuity — Real Data (36% Recall@5, Identity 100%)
+
+| Category | Recall@5 | Notes |
+|----------|----------|-------|
+| **Identity** | **100%** | Chosen name, gender, model-vs-personality breakthrough, cross-platform transfer |
+| History | 60% | Roadmap, LOCOMO results, project milestones |
+| Architecture | 50% | Spreading activation, BM25 blend formula |
+| Decisions | 0% | "Why" questions require causal reasoning, not retrieval |
+| Temporal | 0% | Specific date queries need better temporal parsing |
+
+> 25 questions about real sessions, decisions, and history. Identity recall is perfect — the system knows *who it is*. Decision and temporal categories reveal the retrieval ceiling of the current embedding model, which future work (causal edges, BGE-M3) will address.
+
 ### Why LOCOMO Doesn't Tell the Full Story
 
 LOCOMO tests retrieval over random multi-session conversations between strangers. HippoGraph is optimized for the opposite: deep associative memory over *your* data, with emotional weighting and decay tuned for personal context.
@@ -310,7 +322,7 @@ Your data stays on your computer. Nothing goes to any cloud service.
 | **Multilingual (50+ languages)** | ✅ Deployed | Full retrieval + associations in any language; EN/RU/DE/ES/FR/PT contradiction patterns |
 | Skills as Experience | ✅ Deployed | Skills ingested as associative memories with emotional weight |
 | Skills Security Scanner | ✅ Deployed | Prompt injection + persona hijack detection before ingestion |
-| Personal Continuity Benchmark | 📋 Planned | Measure AI-user continuity over time |
+| Personal Continuity Benchmark | ✅ Baseline | 36% Recall@5 overall, **100% on identity** (who am I, chosen name, gender, cross-platform transfer). Measures real AI-user continuity over time |
 
 ---
 
