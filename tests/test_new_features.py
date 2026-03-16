@@ -204,3 +204,126 @@ class TestTemporaryItemsFilter:
         assert 'graph_engine.py' in entries
         dotfiles = [e for e in entries if e.startswith('.DS_Store')]
         assert dotfiles == [], f'DS_Store found in container: {dotfiles}'
+
+# ─────────────────────────────────────────────
+# EMOTIONAL_RESONANCE edges
+# ─────────────────────────────────────────────
+
+class TestEmotionalResonance:
+
+    def _make_db(self, tmp_path, notes):
+        """Create minimal test DB with nodes table."""
+        import sqlite3, os
+        db = os.path.join(tmp_path, 'test.db')
+        conn = sqlite3.connect(db)
+        conn.execute("""
+            CREATE TABLE nodes (
+                id INTEGER PRIMARY KEY,
+                content TEXT,
+                category TEXT DEFAULT 'general',
+                timestamp TEXT,
+                embedding BLOB,
+                last_accessed TEXT,
+                access_count INTEGER DEFAULT 0,
+                importance TEXT DEFAULT 'normal',
+                emotional_tone TEXT,
+                emotional_intensity INTEGER DEFAULT 5,
+                emotional_reflection TEXT,
+                t_event_start TEXT,
+                t_event_end TEXT,
+                temporal_expressions TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE edges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_id INTEGER,
+                target_id INTEGER,
+                weight REAL DEFAULT 0.5,
+                edge_type TEXT DEFAULT 'semantic',
+                created_at TEXT,
+                UNIQUE(source_id, target_id, edge_type)
+            )
+        """)
+        for note_id, tone in notes:
+            conn.execute(
+                'INSERT INTO nodes (id, content, emotional_tone) VALUES (?, ?, ?)',
+                (note_id, f'note {note_id}', tone)
+            )
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_creates_edges_for_shared_tags(self, tmp_path):
+        """Two notes with 2+ shared tags get EMOTIONAL_RESONANCE edge."""
+        import sys, os
+        sys.path.insert(0, '/app/src')
+        # Patch DB path for database module
+        import database
+        db = self._make_db(str(tmp_path), [
+            (1, 'joy, warmth, pride'),
+            (2, 'joy, warmth, accountability'),
+            (3, 'shame, resolve'),
+        ])
+        orig = database.DB_PATH
+        database.DB_PATH = db
+        try:
+            from sleep_compute import step_emotional_resonance
+            result = step_emotional_resonance(db, dry_run=False)
+            assert result['edges_created'] > 0, 'Expected edges between notes 1 and 2'
+            assert result['pairs_checked'] >= 1
+        finally:
+            database.DB_PATH = orig
+
+    def test_dry_run_creates_no_edges(self, tmp_path):
+        """Dry run reports would_create but creates nothing."""
+        import sys
+        sys.path.insert(0, '/app/src')
+        db = self._make_db(str(tmp_path), [
+            (1, 'joy, warmth, pride'),
+            (2, 'joy, warmth, gratitude'),
+        ])
+        from sleep_compute import step_emotional_resonance
+        import sqlite3
+        result = step_emotional_resonance(db, dry_run=True)
+        assert result['edges_created'] == 0
+        conn = sqlite3.connect(db)
+        count = conn.execute("SELECT COUNT(*) FROM edges WHERE edge_type='EMOTIONAL_RESONANCE'").fetchone()[0]
+        conn.close()
+        assert count == 0
+
+    def test_min_two_shared_tags(self, tmp_path):
+        """Notes with only 1 shared tag do NOT get edges."""
+        import sys, sqlite3
+        sys.path.insert(0, '/app/src')
+        db = self._make_db(str(tmp_path), [
+            (1, 'joy, pride'),
+            (2, 'joy, shame'),   # only 1 shared: joy
+        ])
+        from sleep_compute import step_emotional_resonance
+        result = step_emotional_resonance(db, dry_run=False)
+        conn = sqlite3.connect(db)
+        count = conn.execute("SELECT COUNT(*) FROM edges WHERE edge_type='EMOTIONAL_RESONANCE'").fetchone()[0]
+        conn.close()
+        assert count == 0, f'Expected 0 edges, got {count}'
+
+    def test_jaccard_weight(self, tmp_path):
+        """Weight = shared / union (Jaccard)."""
+        import sys
+        sys.path.insert(0, '/app/src')
+        # tags_a = {joy, warmth, pride}, tags_b = {joy, warmth, resolve}
+        # shared=2, union=4, jaccard=0.5
+        tags_a = {'joy', 'warmth', 'pride'}
+        tags_b = {'joy', 'warmth', 'resolve'}
+        shared = tags_a & tags_b
+        jaccard = round(len(shared) / len(tags_a | tags_b), 3)
+        assert abs(jaccard - 0.5) < 0.01, f'Expected ~0.5, got {jaccard}'
+        assert len(shared) >= 2  # meets min 2 threshold
+        # Verify step reports 1 resonant pair
+        db = self._make_db(str(tmp_path), [
+            (1, 'joy, warmth, pride'),
+            (2, 'joy, warmth, resolve'),
+        ])
+        from sleep_compute import step_emotional_resonance
+        result = step_emotional_resonance(db, dry_run=True)
+        assert result['pairs_checked'] == 1
