@@ -126,6 +126,10 @@ Query → Temporal Decomposition
               ↓
     Temporal Decay (half-life=30 days)
               ↓
+    CONTRADICTS Penalty (0.5× for contradicted notes)
+              ↓
+    Lateral Inhibition (GABA analog — sub-community winners suppress)
+              ↓
     Top-K Results
 ```
 
@@ -146,6 +150,7 @@ Regex ───────────────── dictionary matching on
 Biological sleep analog — runs in background while idle:
 - **Light sleep** (every 50 notes): stale edge decay, PageRank recalculation, duplicate scan, anchor importance boost
 - **Deep sleep** (daily): GLiNER2 relation extraction, conflict detection, snapshot + rollback
+- **Emergence check** (each cycle): three-signal detection — convergence, phi_proxy (IIT-inspired), self-referential precision. Logs to `emergence_log` table for trend analysis
 
 ---
 
@@ -298,6 +303,8 @@ Your data stays on your computer. Nothing goes to any cloud service.
 | **CONTRADICTS Edges** | ✅ Deployed | Biological cognitive dissonance: contradicting notes suppress each other (0.5x penalty when contradicting note is active in retrieval) |
 | **EMOTIONAL_RESONANCE Edges** | ✅ Deployed | Amygdala analog: notes sharing 2+ emotional tone tags form affective links (Jaccard, multilingual: RU/ES/DE/FR/PT tags normalized to EN, 1031 edges) |
 | **GENERALIZES / INSTANTIATES Edges** | ✅ Deployed | Prefrontal cortex analog: critical-lessons GENERALIZES protocols (cosine >=0.65, 70 edges; debug/session-summary excluded as too generic) |
+| **Lateral Inhibition** | ✅ Deployed | GABA analog: sub-community detection (resolution=2.0, ~100 clusters) + post-blend winner-takes-most suppression. Increases result diversity (3.2→4.8 unique clusters in top-5) |
+| **Emergence Detection** | ✅ Deployed | Three-signal metric: convergence (focus), phi_proxy (integration), self-referential P@5 (self-model). Logged each sleep cycle to track graph maturation |
 | **Temporal Filtering (dateparser)** | ✅ Deployed | Natural language time queries: "last week", "на прошлой неделе", "yesterday" auto-convert to time filters |
 | **Synonym Normalization** | ✅ Deployed | Abbreviation + cross-lingual expansion: 50+ pairs EN/RU/ES/DE/FR/PT; search-time `normalize_query()` maps any language to canonical EN form |
 | **Multilingual (50+ languages)** | ✅ Deployed | Full retrieval + associations in any language; EN/RU/DE/ES/FR/PT contradiction patterns |

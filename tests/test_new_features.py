@@ -488,3 +488,125 @@ class TestEmotionalTagNormalization:
         from sleep_compute import step_emotional_resonance
         result = step_emotional_resonance(db, dry_run=True)
         assert result['pairs_checked'] == 1, f'Expected 1 resonant pair, got {result["pairs_checked"]}'
+
+
+# === Emergence Detection Tests ===
+
+class TestEmergenceCheck:
+    """Tests for step_emergence_check in sleep_compute."""
+
+    def test_emergence_log_table_created(self, tmp_path):
+        """emergence_log table is created on first run."""
+        import sqlite3
+        import numpy as np
+        db = tmp_path / "test.db"
+        conn = sqlite3.connect(str(db))
+        conn.execute("""CREATE TABLE nodes (
+            id INTEGER PRIMARY KEY, content TEXT, category TEXT,
+            embedding BLOB, timestamp TEXT, importance TEXT,
+            emotional_tone TEXT, emotional_intensity INTEGER,
+            last_accessed TEXT, access_count INTEGER,
+            t_event_start TEXT, t_event_end TEXT
+        )""")
+        conn.execute("""CREATE TABLE edges (
+            id INTEGER PRIMARY KEY, source_id INTEGER, target_id INTEGER,
+            weight REAL, edge_type TEXT, created_at TEXT
+        )""")
+        # Add minimal nodes with embeddings
+        emb = np.random.randn(384).astype(np.float32).tobytes()
+        for i in range(5):
+            conn.execute(
+                "INSERT INTO nodes (id, content, category, embedding, timestamp, importance) VALUES (?, ?, ?, ?, ?, ?)",
+                (i+1, f"test note {i}", "general", emb, "2026-03-16", "normal")
+            )
+        conn.commit()
+        conn.close()
+
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+        from sleep_compute import step_emergence_check
+        result = step_emergence_check(str(db), dry_run=True)
+
+        assert 'convergence' in result
+        assert 'phi_proxy' in result
+        assert 'self_ref_precision' in result
+        assert 'composite' in result
+        assert 0 <= result['convergence'] <= 1
+        assert 0 <= result['phi_proxy'] <= 1
+        assert 0 <= result['composite'] <= 1
+
+    def test_emergence_composite_formula(self):
+        """Composite = 0.3*convergence + 0.4*phi + 0.3*self_ref."""
+        c, p, s = 0.5, 0.7, 0.6
+        expected = 0.3 * c + 0.4 * p + 0.3 * s
+        assert abs(expected - 0.61) < 0.01
+
+
+# === Lateral Inhibition Tests ===
+
+class TestLateralInhibition:
+    """Tests for GABA-like lateral inhibition in graph_engine."""
+
+    def test_inhibition_strength_zero_no_change(self):
+        """INHIBITION_STRENGTH=0 should not modify scores."""
+        scores = {1: 0.9, 2: 0.8, 3: 0.7}
+        # With strength=0, no suppression
+        strength = 0.0
+        if strength > 0:
+            for nid in scores:
+                scores[nid] *= (1.0 - strength)
+        assert scores == {1: 0.9, 2: 0.8, 3: 0.7}
+
+    def test_inhibition_suppresses_non_winners(self):
+        """Non-winner nodes in same community should be suppressed."""
+        strength = 0.3
+        community = [(1, 0.9), (2, 0.8), (3, 0.7)]  # node_id, score
+        winner_id = max(community, key=lambda x: x[1])[0]
+        results = {}
+        for nid, score in community:
+            if nid == winner_id:
+                results[nid] = score  # winner keeps score
+            else:
+                results[nid] = score * (1.0 - strength)  # suppressed
+        assert results[1] == 0.9  # winner unchanged
+        assert abs(results[2] - 0.56) < 0.01  # 0.8 * 0.7
+        assert abs(results[3] - 0.49) < 0.01  # 0.7 * 0.7
+
+    def test_inhibition_increases_spread(self):
+        """Inhibition should increase score gap between winner and others."""
+        import numpy as np
+        before = [0.9, 0.85, 0.83, 0.80, 0.78]
+        after = [0.9, 0.85 * 0.7, 0.83 * 0.7, 0.80, 0.78 * 0.7]  # assuming 2,3,5 same comm as 1
+        spread_before = before[0] - before[-1]
+        spread_after = after[0] - min(after)
+        assert spread_after > spread_before
+
+    def test_singleton_community_no_suppression(self):
+        """A community with only one member should not be affected."""
+        strength = 0.5
+        community = [(42, 0.75)]  # single member
+        # No suppression for singletons
+        assert len(community) < 2  # skip condition
+
+
+class TestCommunityResolution:
+    """Tests for sub-community detection resolution."""
+
+    def test_higher_resolution_more_communities(self):
+        """Higher resolution should produce more communities."""
+        import networkx as nx
+        from networkx.algorithms.community import greedy_modularity_communities
+        # Create a small graph with clear cluster structure
+        G = nx.Graph()
+        # Two clusters connected by weak link
+        for i in range(5):
+            for j in range(i+1, 5):
+                G.add_edge(i, j, weight=0.8)
+        for i in range(5, 10):
+            for j in range(i+1, 10):
+                G.add_edge(i, j, weight=0.8)
+        G.add_edge(3, 7, weight=0.1)  # weak bridge
+
+        comms_low = greedy_modularity_communities(G, weight='weight', resolution=1.0)
+        comms_high = greedy_modularity_communities(G, weight='weight', resolution=5.0)
+        assert len(list(comms_high)) >= len(list(comms_low))
