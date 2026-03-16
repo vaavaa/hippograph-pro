@@ -1,0 +1,14 @@
+# macOS artifacts
+.DS_Store
+.TemporaryItems
+**/.DS_Store
+
+# Git
+.git
+.gitignore
+
+# Dev/local
+*.pyc
+__pycache__
+.env
+benchmark/results/
