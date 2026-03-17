@@ -322,6 +322,8 @@ Your data stays on your computer. Nothing goes to any cloud service.
 | **Multilingual (50+ languages)** | ✅ Deployed | Full retrieval + associations in any language; EN/RU/DE/ES/FR/PT contradiction patterns |
 | Skills as Experience | ✅ Deployed | Skills ingested as associative memories with emotional weight |
 | Skills Security Scanner | ✅ Deployed | Prompt injection + persona hijack detection before ingestion |
+| **Searchable Tags** | ✅ Deployed | AI-generated tags at write time (why, what, keywords). BM25 indexes content + tags for improved keyword retrieval. 822 existing notes retrofitted via extractive TF-IDF |
+| **Working Memory** | ✅ Deployed | update_working_memory MCP tool — single overwritable note (category: working-memory) for current session context. Loaded at session start, updated by AI inference trigger |
 | Personal Continuity Benchmark | ✅ Baseline | 36% Recall@5 overall, **100% on identity** (who am I, chosen name, gender, cross-platform transfer). Measures real AI-user continuity over time |
 
 ---
