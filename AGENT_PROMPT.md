@@ -39,6 +39,40 @@ Save proactively — don't wait to be asked. Good triggers:
 - Include enough context that future-you understands without the conversation
 - One note = one idea. Don't bundle unrelated things.
 
+### Tags — ALWAYS add when saving notes
+When calling add_note, ALWAYS include the `tags` parameter with 3-5 searchable
+keywords that capture WHY and WHAT:
+- why: the reason behind this note ("performance-optimization", "security-fix")
+- what: the core subject ("NER-migration", "benchmark-result")
+- keywords: terms someone would search for to find this note
+
+Example:
+  add_note(
+    content="Decided to remove Ollama in favor of GLiNER...",
+    category="project-decisions",
+    importance="critical",
+    tags="ollama-removal gliner-migration ner-performance decision-why-speed"
+  )
+
+Good tags make notes findable even when the content doesn't contain the exact
+search terms. Tags bridge the gap between how something was described and how
+someone will search for it later.
+
+### Working memory — update after significant exchanges
+After any significant exchange (decision made, task completed, direction changed,
+important context learned), call update_working_memory with a brief summary of
+the current session state:
+- What we are working on right now
+- Key decisions made in this session
+- Active tasks and their status
+- Important context for continuity
+
+This is loaded automatically at the start of each session and provides
+immediate context without needing to search. Keep it concise (5-10 lines).
+
+Do NOT call update_working_memory on every single exchange — only when
+something meaningful changes. Use your judgment.
+
 ### How to search well
 - Prefer specific queries over generic ones
 - Use category filter when you know the domain
@@ -86,6 +120,7 @@ Please do the following:
 2. After each answer, save it to memory with appropriate category and
    importance. Tag the most important notes with the phrase
    "self-identity protocol" so they load automatically at session start.
+   ALWAYS include tags parameter with searchable keywords.
 
 3. At the end, search_memory("self-identity protocol") and confirm
    what you've saved. Tell me what you'll remember next time.
@@ -99,7 +134,7 @@ You can tune system behavior via environment variables in your `.env` file.
 See `.env.example` for all options. Key ones:
 
 | Variable | What it does | Default |
-|----------|--------------|---------|
+|----------|--------------|---------||
 | `BLEND_ALPHA` | Weight of semantic similarity in search (0-1) | `0.6` |
 | `BLEND_GAMMA` | Weight of BM25 keyword search | `0.15` |
 | `RERANK_ENABLED` | Enable cross-encoder reranking (+precision, +100ms) | `false` |

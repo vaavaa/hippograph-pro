@@ -167,7 +167,8 @@ def find_similar_notes(content, threshold=SIMILAR_THRESHOLD, limit=5):
 
 
 def add_note_with_links(content, category="general", importance="normal", force=False,
-                        emotional_tone=None, emotional_intensity=5, emotional_reflection=None):
+                        emotional_tone=None, emotional_intensity=5, emotional_reflection=None,
+                        tags=None):
     """
     Add note with automatic entity extraction, linking, and emotional context.
     
@@ -223,7 +224,7 @@ def add_note_with_links(content, category="general", importance="normal", force=
                 if sim >= DUPLICATE_THRESHOLD: return {"error": "duplicate", "message": f"Similar note exists ({sim:.2%})", "existing_id": n["id"], "existing_content": n["content"][:200], "similarity": round(sim, 4)}
     
     # Create the node with emotional context
-    node_id = create_node(content, category, embedding.tobytes(), importance, emotional_tone, emotional_intensity, emotional_reflection)
+    node_id = create_node(content, category, embedding.tobytes(), importance, emotional_tone, emotional_intensity, emotional_reflection, tags=tags)
     
     # Add to ANN index incrementally (enables immediate search for this note)
     if ann_index.enabled:
@@ -233,7 +234,8 @@ def add_note_with_links(content, category="general", importance="normal", force=
     from bm25_index import get_bm25_index
     bm25 = get_bm25_index()
     if bm25.is_built:
-        bm25.add_document(node_id, content)
+        bm25_text = (content + " " + (tags or "")).strip()
+        bm25.add_document(node_id, bm25_text)
     
     # Extract entities and create entity-based links
     entities = extract_entities(content)

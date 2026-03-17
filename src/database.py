@@ -72,6 +72,11 @@ def init_database():
             cursor.execute("ALTER TABLE nodes ADD COLUMN temporal_expressions TEXT")
             print("  ↳ Added bi-temporal columns to nodes table")
         
+        # Migration: add tags column if missing (item #38)
+        if 'tags' not in columns:
+            cursor.execute("ALTER TABLE nodes ADD COLUMN tags TEXT")
+            print("  ↳ Added 'tags' column to nodes table")
+        
         # Edges table (connections between nodes)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS edges (
@@ -130,7 +135,7 @@ def init_database():
 
 def create_node(content, category="general", embedding=None, importance="normal", 
                 emotional_tone=None, emotional_intensity=5, emotional_reflection=None,
-                t_event_start=None, t_event_end=None, temporal_expressions=None):
+                t_event_start=None, t_event_end=None, temporal_expressions=None, tags=None):
     """Create a new node (note). 
     Importance: 'critical', 'normal', or 'low'
     Emotional fields: tone (keywords), intensity (0-10), reflection (narrative) - only if ENABLE_EMOTIONAL_MEMORY=true
@@ -162,11 +167,11 @@ def create_node(content, category="general", embedding=None, importance="normal"
         cursor.execute(
             """INSERT INTO nodes (content, category, timestamp, embedding, last_accessed, access_count, 
                importance, emotional_tone, emotional_intensity, emotional_reflection,
-               t_event_start, t_event_end, temporal_expressions) 
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)""",
+               t_event_start, t_event_end, temporal_expressions, tags) 
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (content, category, timestamp, embedding, timestamp, importance, 
              emotional_tone, emotional_intensity, emotional_reflection,
-             t_event_start, t_event_end, temporal_expressions)
+             t_event_start, t_event_end, temporal_expressions, tags)
         )
         return cursor.lastrowid
 
@@ -181,7 +186,7 @@ def get_node(node_id):
 
 
 def update_node(node_id, content=None, category=None, embedding=None, importance=None,
-                emotional_tone=None, emotional_intensity=None, emotional_reflection=None):
+                emotional_tone=None, emotional_intensity=None, emotional_reflection=None, tags=None):
     """Update existing node. Emotional fields only if ENABLE_EMOTIONAL_MEMORY=true"""
     
     # Ignore emotional fields if feature is disabled
@@ -217,6 +222,9 @@ def update_node(node_id, content=None, category=None, embedding=None, importance
         if emotional_reflection is not None:
             updates.append("emotional_reflection = ?")
             params.append(emotional_reflection)
+        if tags is not None:
+            updates.append("tags = ?")
+            params.append(tags)
         
         if not updates:
             return False

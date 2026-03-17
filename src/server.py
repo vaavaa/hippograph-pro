@@ -53,7 +53,7 @@ def create_app():
     
     # Build BM25 keyword index
     from bm25_index import get_bm25_index
-    bm25_docs = [(n["id"], n.get("content", "")) for n in nodes]
+    bm25_docs = [(n["id"], (n.get("content", "") + " " + (n.get("tags", "") or "")).strip()) for n in nodes]
     get_bm25_index().build(bm25_docs)
     
     # Pre-load reranker model if enabled
