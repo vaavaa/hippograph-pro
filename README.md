@@ -162,7 +162,7 @@ HippoGraph treats memory the way it should be treated — with care.
 
 **No automatic pruning.** This is an intentional architectural decision. Automatic cleanup optimizes for efficiency at the cost of unpredictable memory loss. If you want to prune weak edges, HippoGraph will show you exactly what would be removed and ask for explicit confirmation — never silently.
 
-**Protected memories don't fade.** Anchor categories are exempt from decay entirely. Protection works in three layers: (1) hardcoded system baseline (milestones, protocols, security, breakthroughs), (2) user-defined policies via MCP, and (3) **auto-discovered** — any category with 3+ critical notes, or containing keywords like , , , , is automatically protected at every sleep cycle. New categories never fall through the cracks.
+**Protected memories don't fade.** Anchor categories are exempt from decay entirely. Protection works in three layers: (1) hardcoded system baseline (milestones, protocols, security, breakthroughs), (2) user-defined policies via MCP, and (3) **auto-discovered** — any category with 1+ critical notes, or containing keywords like , , , , is automatically protected at every sleep cycle. New categories never fall through the cracks.
 
 ---
 
