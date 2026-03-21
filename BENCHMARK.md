@@ -18,7 +18,7 @@ We report LOCOMO results for retrieval quality validation. For real-world perfor
 
 Evaluated on [LOCOMO](https://github.com/snap-research/locomo) — 10 multi-session conversations, 272 sessions, 5,882 turns, 1,986 QA pairs.
 
-**Key result: 78.7% Recall@5 at zero LLM infrastructure cost.**
+**Key result: 78.7% Recall@5 (benchmark-optimized config) / 47.9% (production config) at zero LLM infrastructure cost.**
 
 ### Best Configuration
 
@@ -60,7 +60,19 @@ Evaluated on [LOCOMO](https://github.com/snap-research/locomo) — 10 multi-sess
 | hippograph-pro, decay OFF | 66.6% | 0.554 | Matches baseline — decay affects ranking |
 | + Reranker sweep (weight=0.8) | 75.7% | 0.641 | Major gain: +9.1pp |
 | + ANN top-K=5 | 78.4% | 0.659 | Counterintuitive: fewer candidates → reranker more precise |
-| **+ Blend α=0.5, γ=0.15 (confirmed)** | **78.7%** | **0.658** | **Final confirmed result (Mar 2026)** |
+| **+ Blend α=0.5, γ=0.15 (confirmed)** | **78.7%** | **0.658** | **Benchmark-optimized config (Mar 7-9 2026)** |
+
+**March 20 2026 — Production config re-run** (standard settings, biological edges + lateral inhibition added):
+
+| Configuration | Recall@5 | MRR | Notes |
+|--------------|----------|-----|-------|
+| Production config (RERANK_WEIGHT=0.3, BLEND_ALPHA=0.7) | 47.9% | 0.362 | +3.7pp vs Feb baseline (44.2%) |
+| — multi-hop | 54.5% | 0.435 | Best multi-hop ever in production config |
+| — temporal | 24.0% | 0.144 | Structural ceiling (~35-40% max without LLM) |
+| — single-hop | 42.6% | 0.281 | |
+| — open-domain | 49.8% | 0.387 | |
+
+> ⚠️ **Two configs, two tracks.** Benchmark-optimized (78.7%) and production (47.9%) use different reranker weights and ANN settings. Direct comparison is not valid — track progress within each config separately.
 
 **Key findings:**
 - Spreading activation validated: multi-hop improved from 27.4% (session) to 78.2% (best) — +50.8pp
