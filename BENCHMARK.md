@@ -18,7 +18,7 @@ We report LOCOMO results for retrieval quality validation. For real-world perfor
 
 Evaluated on [LOCOMO](https://github.com/snap-research/locomo) — 10 multi-session conversations, 272 sessions, 5,882 turns, 1,986 QA pairs.
 
-**Key result: 78.7% Recall@5 (benchmark-optimized config) / 47.9% (production config) at zero LLM infrastructure cost.**
+**Key result: 78.7% Recall@5 (benchmark-optimized config) / 47.9% (production config) at zero LLM infrastructure cost. Graph scale: 100,356 edges, emergence score 0.629.**
 
 ### Best Configuration
 
