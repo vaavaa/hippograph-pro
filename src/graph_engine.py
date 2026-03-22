@@ -166,6 +166,75 @@ def find_similar_notes(content, threshold=SIMILAR_THRESHOLD, limit=5):
     return similarities[:limit]
 
 
+
+def _mini_consolidate(node_id, top_k=15, threshold=0.75):
+    """Online consolidation at add_note time (item #40).
+
+    Builds consolidation edges to nearest neighbours immediately
+    after a note is added, without waiting for sleep_compute.
+    O(k) cost vs O(N^2) for full sleep.
+
+    Args:
+        node_id: newly created note ID
+        top_k: how many ANN neighbours to check
+        threshold: min cosine similarity for consolidation edge
+    """
+    try:
+        import numpy as np
+        ann = get_ann_index()
+        if ann is None:
+            return 0
+        try:
+            if ann.index.get_current_count() == 0:
+                return 0
+        except Exception:
+            return 0
+
+        # Get embedding of the new note
+        with get_connection() as conn:
+            row = conn.execute(
+                'SELECT embedding FROM nodes WHERE id=?', (node_id,)
+            ).fetchone()
+        if not row or not row[0]:
+            return 0
+
+        emb = np.frombuffer(row[0], dtype=np.float32)
+        norm = np.linalg.norm(emb)
+        if norm == 0:
+            return 0
+        emb = emb / norm
+
+        # Query ANN for nearest neighbours
+        labels, distances = ann.index.knn_query(emb.reshape(1, -1), k=min(top_k + 1, ann.index.get_current_count()))
+        labels = labels[0]
+        distances = distances[0]  # L2 distances from HNSW
+
+        created = 0
+        for i, nid in enumerate(labels):
+            if nid == node_id:
+                continue
+            # Convert L2 distance to cosine similarity
+            cos_sim = max(0.0, 1.0 - distances[i] / 2.0)
+            if cos_sim < threshold:
+                continue
+
+            # Check if consolidation edge already exists
+            with get_connection() as conn:
+                existing = conn.execute(
+                    "SELECT id FROM edges WHERE source_id=? AND target_id=? AND edge_type='consolidation'",
+                    (node_id, int(nid))
+                ).fetchone()
+            if existing:
+                continue
+
+            create_edge(node_id, int(nid), weight=float(cos_sim), edge_type='consolidation')
+            created += 1
+
+        return created
+    except Exception as ex:
+        # Never block add_note on consolidation errors
+        return 0
+
 def add_note_with_links(content, category="general", importance="normal", force=False,
                         emotional_tone=None, emotional_intensity=5, emotional_reflection=None,
                         tags=None):
@@ -321,7 +390,13 @@ def add_note_with_links(content, category="general", importance="normal", force=
     if similar_warnings:
         result["warning"] = "Similar notes exist"
         result["similar_notes"] = similar_warnings
-    
+
+    # Online consolidation (item #40): build consolidation edges immediately
+    import os as _os
+    if _os.getenv('ONLINE_CONSOLIDATION', 'true').lower() == 'true':
+        consolidation_links = _mini_consolidate(node_id)
+        result['consolidation_links'] = consolidation_links
+
     return result
 
 
