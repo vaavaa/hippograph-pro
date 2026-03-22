@@ -17,22 +17,14 @@ body { background: #0a0a0f; color: #e0e0e0; font-family: -apple-system, sans-ser
 h1 { font-size: 15px; font-weight: 600; color: #7c9ff5; }
 h3 { font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
 .section { border-top: 1px solid #1a1a2e; padding-top: 10px; }
-input[type=text], select {
-  width: 100%; padding: 7px 10px; background: #111122; border: 1px solid #2a2a3e;
-  border-radius: 6px; color: #e0e0e0; font-size: 12px; outline: none;
-}
+input[type=text], select { width: 100%; padding: 7px 10px; background: #111122; border: 1px solid #2a2a3e; border-radius: 6px; color: #e0e0e0; font-size: 12px; outline: none; }
 input[type=range] { width: 100%; accent-color: #7c9ff5; cursor: pointer; }
 .stat { font-size: 11px; color: #aaa; line-height: 1.8; }
 .stat strong { color: #e0e0e0; }
-#nodeDetail {
-  background: #0d0d1a; border: 1px solid #2a2a3e; border-radius: 8px;
-  padding: 10px; font-size: 11px; line-height: 1.6; max-height: 260px; overflow-y: auto;
-}
+#nodeDetail { background: #0d0d1a; border: 1px solid #2a2a3e; border-radius: 8px; padding: 10px; font-size: 11px; line-height: 1.6; max-height: 260px; overflow-y: auto; display: none; }
 .nd-title { font-size: 13px; font-weight: 600; color: #7c9ff5; margin-bottom: 4px; }
-.nd-meta { color: #888; margin-bottom: 6px; font-size: 10px; }
-.nd-content { color: #ccc; white-space: pre-wrap; word-break: break-word; }
 .ctrl-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #aaa; }
-button { padding: 6px 12px; background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 6px; color: #e0e0e0; font-size: 11px; cursor: pointer; }
+button { padding: 6px 10px; background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 6px; color: #e0e0e0; font-size: 11px; cursor: pointer; }
 button:hover { background: #252540; }
 #loading { position: fixed; inset: 0; background: #0a0a0f; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 16px; }
 #loadingText { font-size: 14px; color: #888; }
@@ -45,10 +37,8 @@ button:hover { background: #252540; }
 </style>
 </head>
 <body>
-
 <div id="loading"><div class="spinner"></div><div id="loadingText">Loading graph...</div></div>
 <div id="tooltip"></div>
-
 <div id="ui">
   <h1>&#129504; HippoGraph 3D</h1>
   <input type="text" id="search" placeholder="Search nodes...">
@@ -71,36 +61,30 @@ button:hover { background: #252540; }
     <h3>Display</h3>
     <div class="ctrl-row" style="margin-bottom:4px;"><span>Node size</span><span id="nodeSzVal">4</span></div>
     <input type="range" min="1" max="12" value="4" id="nodeSzRange">
-    <div class="ctrl-row" style="margin-top:8px;margin-bottom:4px;"><span>Link opacity</span><span id="linkOpVal">0.12</span></div>
-    <input type="range" min="0" max="1" step="0.02" value="0.12" id="linkOpRange">
+    <div class="ctrl-row" style="margin-top:8px;margin-bottom:4px;"><span>Link opacity</span><span id="linkOpVal">0.15</span></div>
+    <input type="range" min="0" max="1" step="0.05" value="0.15" id="linkOpRange">
     <div class="ctrl-row" style="margin-top:8px;margin-bottom:4px;"><span>Min weight</span><span id="minWeightVal">0.8</span></div>
     <input type="range" min="0" max="1" step="0.1" value="0.8" id="minWeightRange">
     <div id="edgeInfo" style="font-size:10px;color:#666;margin-top:2px;"></div>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
-      <button id="btnLabels">Labels off</button>
-      <button id="btnWeights">Weights off</button>
+      <button id="btnLabels">Labels</button>
+      <button id="btnWeights">Weights</button>
       <button id="btnFit">Fit</button>
       <button id="btnReset">Reset</button>
     </div>
   </div>
   <div class="section"><h3>Stats</h3><div id="statsDiv" class="stat">Loading...</div></div>
   <div class="section"><h3>Legend</h3><div id="legend"></div></div>
-  <div class="section"><h3>Node</h3><div id="nodeDetail"><div style="color:#555;font-size:11px;">Click a node to inspect</div></div></div>
+  <div class="section"><h3>Node</h3><div id="nodeDetail"><div style="color:#555;font-size:11px;">Click a node</div></div></div>
 </div>
-
 <div id="container"></div>
-
-<script src="/3d-force-graph.min.js"></script>
-<script>
+<script src="/3d-force-graph.min.js"></script><script>
 (function() {
   var API_BASE = window.location.protocol + '//' + window.location.hostname + ':5001';
   var API_KEY = new URLSearchParams(window.location.search).get('api_key') || localStorage.getItem('hg_api_key') || '';
   if (API_KEY) localStorage.setItem('hg_api_key', API_KEY);
 
-  function esc(s) {
-    if (!s) return '';
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+  function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   var COLORS = ['#7c9ff5','#5ecba1','#f5a97f','#e879a0','#a78bfa','#fbbf24','#34d399','#f87171','#60a5fa','#c084fc','#fb923c','#4ade80','#f472b6','#38bdf8','#a3e635'];
   var catColorMap = {};
@@ -110,325 +94,244 @@ button:hover { background: #252540; }
   }
 
   var allNodes = [], allLinks = [], graph = null;
-  var showLabels = false, nodeSize = 4, linkOpacity = 0.12, showWeights = false, minWeight = 0.8;
+  var showLabels = false, nodeSize = 4, linkOpacity = 0.15, showWeights = false, minWeight = 0.8;
   var highlightNodes = new Set(), highlightLinks = new Set();
 
-  function setLoading(msg) {
-    var el = document.getElementById('loadingText');
-    if (el) el.textContent = msg;
-  }
-
-  function hideLoading() {
-    var el = document.getElementById('loading');
-    if (el) el.style.display = 'none';
-  }
+  function hideLoading() { var el = document.getElementById('loading'); if (el) el.style.display = 'none'; }
+  function setLoading(msg) { var el = document.getElementById('loadingText'); if (el) el.textContent = msg; }
 
   async function loadData() {
     setLoading('Fetching graph data...');
-    var url = API_BASE + '/api/graph-data?api_key=' + encodeURIComponent(API_KEY) + '&brief=true';
-    var res = await fetch(url);
+    var res = await fetch(API_BASE + '/api/graph-data?api_key=' + encodeURIComponent(API_KEY) + '&brief=true');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     var data = await res.json();
-
     allNodes = data.nodes.map(function(n) {
-      return {
-        id: String(n.id),
-        category: n.category || 'general',
-        community: n.community,
-        pagerank: n.pagerank || 0,
-        importance: n.importance || 'normal',
-        emotional_tone: n.emotional_tone || '',
-        emotional_intensity: n.emotional_intensity || 0,
-        preview: n.preview || '',
-        timestamp: n.timestamp || '',
-        color: getColor(n.category || 'general'),
-        val: 1 + (n.pagerank || 0) * 6
-      };
+      return { id: String(n.id), category: n.category||'general', community: n.community, pagerank: n.pagerank||0,
+        importance: n.importance||'normal', emotional_tone: n.emotional_tone||'', emotional_intensity: n.emotional_intensity||0,
+        preview: n.preview||'', timestamp: n.timestamp||'', color: getColor(n.category||'general'), val: 1+(n.pagerank||0)*6 };
     });
-
-    var PRIORITY = ['consolidation','semantic','GENERALIZES','INSTANTIATES','EMOTIONAL_RESONANCE'];
-    var all = data.edges || [];
-    // Store all links mapped, filter by weight on render
-    allLinks = all.map(function(e) {
-      return { source: String(e.source), target: String(e.target), type: e.type || 'entity', weight: e.weight || 0.5 };
+    allLinks = (data.edges||[]).map(function(e) {
+      return { source: String(e.source), target: String(e.target), type: e.type||'entity', weight: e.weight||0.5 };
     });
-
     var shown = filterLinks();
-    var statsEl = document.getElementById('statsDiv');
-    if (statsEl) statsEl.innerHTML =
-      '<div class="stat"><strong>Nodes:</strong> ' + allNodes.length + '</div>' +
-      '<div class="stat"><strong>Total edges:</strong> ' + all.length.toLocaleString() + '</div>' +
-      '<div class="stat"><strong>Showing:</strong> ' + shown.length + ' (weight &ge;' + minWeight.toFixed(1) + ')</div>';
-
+    updateStats(data.edges ? data.edges.length : 0, shown.length);
     return { nodes: allNodes, links: shown };
   }
 
   function filterLinks() {
-    var PRIORITY = ['consolidation','semantic','GENERALIZES','INSTANTIATES','EMOTIONAL_RESONANCE'];
-    var filtered = allLinks.filter(function(l) { return l.weight >= minWeight; });
-    filtered.sort(function(a,b) {
-      var pa = PRIORITY.indexOf(a.type)>=0?1:0, pb = PRIORITY.indexOf(b.type)>=0?1:0;
-      if (pa!==pb) return pb-pa; return b.weight-a.weight;
-    });
-    return filtered.slice(0, 25000);
+    var PRI = ['consolidation','semantic','GENERALIZES','INSTANTIATES','EMOTIONAL_RESONANCE'];
+    var f = allLinks.filter(function(l) { return l.weight >= minWeight; });
+    f.sort(function(a,b) { var pa=PRI.indexOf(a.type)>=0?1:0,pb=PRI.indexOf(b.type)>=0?1:0; if(pa!==pb)return pb-pa; return b.weight-a.weight; });
+    return f; // no cap
+  }
+
+  function updateStats(total, shown) {
+    var el = document.getElementById('statsDiv');
+    if (el) el.innerHTML = '<div class="stat"><strong>Nodes:</strong> '+allNodes.length+'</div>'+
+      '<div class="stat"><strong>Total edges:</strong> '+total.toLocaleString()+'</div>'+
+      '<div class="stat"><strong>Showing:</strong> '+shown.toLocaleString()+' (w&ge;'+minWeight.toFixed(1)+')</div>';
   }
 
   function buildLegend() {
-    var cats = Object.entries(catColorMap)
-      .map(function(e) { return { name: e[0], color: e[1], count: allNodes.filter(function(n) { return n.category === e[0]; }).length }; })
-      .sort(function(a,b) { return b.count - a.count; }).slice(0, 15);
-    var el = document.getElementById('legend');
-    if (!el) return;
-    el.innerHTML = '';
-    var sel = document.getElementById('catFilter');
-    cats.forEach(function(c) {
-      var item = document.createElement('div');
-      item.className = 'legend-item';
-      item.innerHTML = '<div class="legend-dot" style="background:' + c.color + '"></div><span>' + esc(c.name) + ' (' + c.count + ')</span>';
-      item.onclick = function() { if(sel) sel.value = c.name; applyFilter(); };
+    var cats = Object.entries(catColorMap).map(function(e){return{name:e[0],color:e[1],count:allNodes.filter(function(n){return n.category===e[0];}).length};})
+      .sort(function(a,b){return b.count-a.count;}).slice(0,15);
+    var el=document.getElementById('legend'),sel=document.getElementById('catFilter');
+    if(!el)return;
+    el.innerHTML='';
+    cats.forEach(function(c){
+      var item=document.createElement('div'); item.className='legend-item';
+      item.innerHTML='<div class="legend-dot" style="background:'+c.color+'"></div><span>'+esc(c.name)+' ('+c.count+')</span>';
+      item.onclick=function(){if(sel)sel.value=c.name;applyFilter();};
       el.appendChild(item);
-      if (sel) {
-        var opt = document.createElement('option');
-        opt.value = c.name; opt.textContent = c.name + ' (' + c.count + ')';
-        sel.appendChild(opt);
-      }
+      if(sel){var opt=document.createElement('option');opt.value=c.name;opt.textContent=c.name+' ('+c.count+')';sel.appendChild(opt);}
     });
   }
 
+  // Link colors — entity visible as dark gray-blue
   function baseLinkColor(t) {
-    if (t === 'semantic') return '#7c9ff5';
-    if (t === 'consolidation') return '#5ecba1';
-    if (t === 'EMOTIONAL_RESONANCE') return '#e879a0';
-    if (t === 'GENERALIZES') return '#fbbf24';
-    if (t === 'INSTANTIATES') return '#a78bfa';
-    return '#1a1a2e';
+    if (t==='semantic') return '#3a5a8a';
+    if (t==='consolidation') return '#2a6a4a';
+    if (t==='EMOTIONAL_RESONANCE') return '#8a2050';
+    if (t==='GENERALIZES') return '#7a5010';
+    if (t==='INSTANTIATES') return '#5a3a7a';
+    return '#4a4a6a'; // entity
   }
-  function linkColor(l) {
-    if (highlightLinks.size === 0) return baseLinkColor(l.type);
-    var sid = String(l.source && l.source.id !== undefined ? l.source.id : l.source);
-    var tid = String(l.target && l.target.id !== undefined ? l.target.id : l.target);
-    if (highlightLinks.has(sid + '-' + tid) || highlightLinks.has(tid + '-' + sid)) {
-      return baseLinkColor(l.type);
-    }
-    return '#0d0d18';
+
+  function getLinkId(l) {
+    var sid=String(l.source&&l.source.id!==undefined?l.source.id:l.source);
+    var tid=String(l.target&&l.target.id!==undefined?l.target.id:l.target);
+    return {sid:sid,tid:tid};
+  }
+
+  function isHighlightedLink(l) {
+    var ids=getLinkId(l);
+    return highlightLinks.has(ids.sid+'-'+ids.tid)||highlightLinks.has(ids.tid+'-'+ids.sid);
+  }
+
+  function linkColorFn(l) {
+    if (highlightLinks.size===0) return baseLinkColor(l.type);
+    return isHighlightedLink(l) ? baseLinkColor(l.type) : '#111118';
+  }
+
+  function linkOpacityFn(l) {
+    if (highlightLinks.size===0) return linkOpacity;
+    return isHighlightedLink(l) ? Math.min(0.9,linkOpacity*5) : 0.02;
+  }
+
+  function makeLabelSprite(text, color) {
+    var canvas=document.createElement('canvas'); canvas.width=160; canvas.height=40;
+    var ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,160,40);
+    ctx.font='bold 16px sans-serif'; ctx.fillStyle=color;
+    ctx.fillText(text,2,28);
+    var tex=new THREE.CanvasTexture(canvas);
+    var mat=new THREE.SpriteMaterial({map:tex,depthWrite:false});
+    var sp=new THREE.Sprite(mat); sp.scale.set(16,4,1); sp.position.set(0,6,0);
+    return sp;
   }
 
   function buildGraph(gd) {
     graph = ForceGraph3D()(document.getElementById('container'))
-      .backgroundColor('#0a0a0f')
-      .graphData(gd)
-      .nodeId('id')
-      .nodeColor(function(n) { return highlightNodes.size > 0 ? (highlightNodes.has(n.id) ? n.color : '#111122') : n.color; })
-      .nodeVal(function(n) { return nodeSize * (n.val || 1); })
-      .nodeLabel(function(n) { return ''; })
-      .nodeThreeObject(function(n) {
-        if (!showLabels) return null;
-        var sprite = new THREE.Sprite(new THREE.SpriteMaterial({ color: n.color }));
-        var canvas = document.createElement('canvas');
-        canvas.width = 128; canvas.height = 32;
-        var ctx = canvas.getContext('2d');
-        ctx.fillStyle = n.color;
-        ctx.font = '14px sans-serif';
-        ctx.fillText('#' + n.id, 2, 22);
-        var tex = new THREE.CanvasTexture(canvas);
-        var mat = new THREE.SpriteMaterial({ map: tex });
-        var sp = new THREE.Sprite(mat);
-        sp.scale.set(12, 3, 1);
-        return sp;
-      })
+      .backgroundColor('#0a0a0f').graphData(gd).nodeId('id')
+      .nodeColor(function(n){return highlightNodes.size>0?(highlightNodes.has(n.id)?n.color:'#1a1a2a'):n.color;})
+      .nodeVal(function(n){return nodeSize*(n.val||1);})
+      .nodeLabel(function(n){return showLabels?'':('#'+n.id+' ['+n.category+']');})
+      .nodeThreeObject(function(n){return showLabels?makeLabelSprite('#'+n.id,n.color):null;})
       .nodeThreeObjectExtend(true)
-      .nodeOpacity(0.9)
+      .nodeOpacity(0.92)
       .linkSource('source').linkTarget('target')
-      .linkOpacity(function(l) { if (highlightLinks.size === 0) return linkOpacity; var sid=String(l.source&&l.source.id!==undefined?l.source.id:l.source),tid=String(l.target&&l.target.id!==undefined?l.target.id:l.target); return (highlightLinks.has(sid+''-''+tid)||highlightLinks.has(tid+''-''+sid)) ? Math.min(1, linkOpacity*6) : 0.03; })
-      .linkWidth(function(l) { return showWeights ? Math.max(0.3, l.weight * 4) : 0.5; })
-      .linkColor(linkColor)
-      .onNodeClick(onNodeClick)
-      .onNodeHover(onNodeHover)
-      .onBackgroundClick(function() {
-        highlightNodes.clear();
-        highlightLinks.clear();
-        graph.nodeColor(function(n) { return n.color; });
-        graph.linkColor(linkColor);
-        graph.linkOpacity(linkOpacity);
-        document.getElementById('tooltip').style.display = 'none';
-        var nd = document.getElementById('nodeDetail');
-        if (nd) { nd.style.display = 'none'; nd.innerHTML = '<div style="color:#555;font-size:11px;">Click a node to inspect</div>'; }
-      });
-
-    // Faster zoom - default is way too slow for large graph
-    if (graph.controls) {
-      var controls = graph.controls();
-      if (controls) {
-        controls.zoomSpeed = 5.0;
-        controls.rotateSpeed = 0.8;
-      }
-    }
+      .linkOpacity(linkOpacityFn)
+      .linkWidth(function(l){return showWeights?Math.max(0.3,l.weight*4):0.5;})
+      .linkColor(linkColorFn)
+      .onNodeClick(onNodeClick).onNodeHover(onNodeHover)
+      .onBackgroundClick(resetHighlight);
+    if (graph.controls&&graph.controls()) { graph.controls().zoomSpeed=5.0; graph.controls().rotateSpeed=0.8; }
     graph.d3Force('charge').strength(-60);
-    graph.onEngineStop(function() { graph.zoomToFit(600, 50); });
-    graph.d3Force('link').distance(function(l) {
-      if (l.type === 'consolidation') return 20;
-      if (l.type === 'semantic') return 50;
-      return 100;
+    graph.onEngineStop(function(){graph.zoomToFit(600,50);});
+    graph.d3Force('link').distance(function(l){
+      if(l.type==='consolidation')return 20; if(l.type==='semantic')return 50; return 100;
     });
+  }
+
+  function resetHighlight() {
+    highlightNodes.clear(); highlightLinks.clear();
+    if(graph){graph.nodeColor(function(n){return n.color;});graph.linkColor(linkColorFn);graph.linkOpacity(linkOpacity);}
+    document.getElementById('tooltip').style.display='none';
+    var nd=document.getElementById('nodeDetail');
+    if(nd){nd.style.display='none';nd.innerHTML='<div style="color:#555;font-size:11px;">Click a node</div>';}
   }
 
   function onNodeHover(node) {
-    var tip = document.getElementById('tooltip');
-    if (!tip) return;
-    if (!node) { tip.style.display = 'none'; return; }
-    tip.style.display = 'block';
-    tip.innerHTML = '<strong>#' + esc(node.id) + '</strong> [' + esc(node.category) + ']<br>' + esc((node.preview || '').substring(0, 80));
+    var tip=document.getElementById('tooltip'); if(!tip)return;
+    if(!node){tip.style.display='none';return;}
+    tip.style.display='block';
+    tip.innerHTML='<strong>#'+esc(node.id)+'</strong> ['+esc(node.category)+']<br>'+esc((node.preview||'').substring(0,80));
   }
 
-  document.addEventListener('mousemove', function(e) {
-    var tip = document.getElementById('tooltip');
-    if (tip && tip.style.display === 'block') {
-      tip.style.left = (e.clientX + 14) + 'px';
-      tip.style.top = (e.clientY - 10) + 'px';
-    }
+  document.addEventListener('mousemove',function(e){
+    var tip=document.getElementById('tooltip');
+    if(tip&&tip.style.display==='block'){tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-10)+'px';}
   });
 
   function onNodeClick(node) {
-    highlightNodes.clear();
-    highlightLinks.clear();
+    highlightNodes.clear(); highlightLinks.clear();
     highlightNodes.add(node.id);
-    // Find all links connected to this node and highlight neighbours
-    var gd = graph.graphData();
-    gd.links.forEach(function(l) {
-      var sid = String(l.source && l.source.id !== undefined ? l.source.id : l.source);
-      var tid = String(l.target && l.target.id !== undefined ? l.target.id : l.target);
-      if (sid === node.id || tid === node.id) {
-        highlightLinks.add(sid + '-' + tid);
-        highlightNodes.add(sid);
-        highlightNodes.add(tid);
+    var gd=graph.graphData();
+    gd.links.forEach(function(l){
+      var ids=getLinkId(l);
+      if(ids.sid===node.id||ids.tid===node.id){
+        highlightLinks.add(ids.sid+'-'+ids.tid);
+        highlightNodes.add(ids.sid); highlightNodes.add(ids.tid);
       }
     });
-    graph.nodeColor(function(n) { return highlightNodes.has(n.id) ? n.color : '#111122'; });
-    graph.linkColor(linkColor);
-    graph.linkOpacity(function(l) {
-      if (highlightLinks.size === 0) return linkOpacity;
-      var sid=String(l.source&&l.source.id!==undefined?l.source.id:l.source),tid=String(l.target&&l.target.id!==undefined?l.target.id:l.target);
-      return (highlightLinks.has(sid+'-'+tid)||highlightLinks.has(tid+'-'+sid)) ? Math.min(1, linkOpacity*6) : 0.03;
-    });
-    var d = 80;
-    graph.cameraPosition({ x: node.x + d, y: node.y + d/2, z: node.z + d }, node, 800);
+    graph.nodeColor(function(n){return highlightNodes.has(n.id)?n.color:'#1a1a2a';});
+    graph.linkColor(linkColorFn); graph.linkOpacity(linkOpacityFn);
+    var d=80; graph.cameraPosition({x:node.x+d,y:node.y+d/2,z:node.z+d},node,800);
     showNodeDetail(node);
   }
 
   async function showNodeDetail(node) {
-    var el = document.getElementById('nodeDetail');
-    if (!el) return;
-    el.style.display = 'block';
-    // Show meta immediately from graph data
-    var tags = node.tags ? '<div class="nd-tags">' + esc(node.tags) + '</div>' : '';
-    el.innerHTML =
-      '<div class="nd-title">#' + esc(node.id) + '</div>' +
-      '<div class="nd-meta">' +
-        '<span style="color:#7c9ff5;">' + esc(node.category) + '</span>' +
-        (node.importance && node.importance !== 'normal' ? ' &bull; <span style="color:#fbbf24;">★ ' + esc(node.importance) + '</span>' : '') +
-        (node.emotional_intensity > 0 ? ' &bull; &#128150; ' + node.emotional_intensity + '/10' : '') +
-      '</div>' +
-      '<div style="color:#aaa;font-size:11px;line-height:1.5;margin-top:6px;">' + esc(node.preview || '') + '</div>';
-    // Fetch tags and emotional_tone from API
+    var el=document.getElementById('nodeDetail'); if(!el)return;
+    el.style.display='block';
+    el.innerHTML='<div class="nd-title">#'+esc(node.id)+'</div>'+
+      '<div style="color:#7c9ff5;font-size:11px;">'+esc(node.category)+'</div>'+
+      (node.importance&&node.importance!=='normal'?'<div style="color:#fbbf24;font-size:10px;">&#9733; '+esc(node.importance)+'</div>':'')+
+      (node.emotional_intensity>0?'<div style="color:#e879a0;font-size:10px;">&#128150; '+node.emotional_intensity+'/10</div>':'')+
+      '<div style="color:#aaa;font-size:11px;margin-top:6px;line-height:1.5;">'+esc(node.preview||'')+'</div>';
     try {
-      var r = await fetch(API_BASE + '/api/node/' + node.id + '?api_key=' + encodeURIComponent(API_KEY));
-      if (r.ok) {
-        var d = await r.json();
-        var tagsHtml = d.tags ? '<div style="margin-top:6px;"><span style="color:#555;font-size:10px;">tags: </span><span style="color:#888;font-size:10px;">' + esc(d.tags) + '</span></div>' : '';
-        var toneHtml = d.emotional_tone ? '<div style="color:#e879a0;font-size:10px;margin-top:4px;">&#128150; ' + esc(d.emotional_tone) + '</div>' : '';
-        var tsHtml = d.timestamp ? '<div style="color:#444;font-size:10px;margin-top:4px;">' + esc(d.timestamp.substring(0,10)) + '</div>' : '';
-        el.innerHTML =
-          '<div class="nd-title">#' + esc(node.id) + '</div>' +
-          '<div class="nd-meta">' +
-            '<span style="color:#7c9ff5;">' + esc(d.category || node.category) + '</span>' +
-            (d.importance && d.importance !== 'normal' ? ' &bull; <span style="color:#fbbf24;">★ ' + esc(d.importance) + '</span>' : '') +
-            (d.emotional_intensity > 0 ? ' &bull; &#128150; ' + d.emotional_intensity + '/10' : '') +
-          '</div>' +
-          toneHtml + tagsHtml + tsHtml +
-          '<div style="color:#aaa;font-size:11px;line-height:1.5;margin-top:6px;border-top:1px solid #1a1a2e;padding-top:6px;">' + esc(node.preview || '') + '</div>';
+      var r=await fetch(API_BASE+'/api/node/'+node.id+'?api_key='+encodeURIComponent(API_KEY));
+      if(r.ok){
+        var d=await r.json();
+        el.innerHTML='<div class="nd-title">#'+esc(node.id)+'</div>'+
+          '<div style="color:#7c9ff5;font-size:11px;">'+esc(d.category||node.category)+'</div>'+
+          (d.importance&&d.importance!=='normal'?'<div style="color:#fbbf24;font-size:10px;">&#9733; '+esc(d.importance)+'</div>':'')+
+          (d.emotional_intensity>0?'<div style="color:#e879a0;font-size:10px;">&#128150; '+d.emotional_intensity+'/10</div>':'')+
+          (d.emotional_tone?'<div style="color:#e879a0;font-size:10px;">'+esc(d.emotional_tone)+'</div>':'')+
+          (d.tags?'<div style="color:#555;font-size:10px;margin-top:3px;">'+esc(d.tags)+'</div>':'')+
+          (d.timestamp?'<div style="color:#444;font-size:10px;">'+esc(d.timestamp.substring(0,10))+'</div>':'')+
+          '<div style="color:#aaa;font-size:11px;margin-top:6px;border-top:1px solid #1a1a2e;padding-top:6px;line-height:1.5;">'+esc(node.preview||'')+'</div>';
       }
-    } catch(e) {}
+    } catch(e){}
   }
 
   function handleSearch() {
-    var q = (document.getElementById('search').value || '').trim().toLowerCase();
-    if (!q) { highlightNodes.clear(); graph && graph.nodeColor(function(n) { return n.color; }); return; }
+    var q=(document.getElementById('search').value||'').trim().toLowerCase();
+    if(!q){highlightNodes.clear();graph&&graph.nodeColor(function(n){return n.color;});return;}
     highlightNodes.clear();
-    allNodes.forEach(function(n) {
-      if ((n.preview||'').toLowerCase().indexOf(q) >= 0 || n.category.toLowerCase().indexOf(q) >= 0 || n.id === q)
-        highlightNodes.add(n.id);
-    });
-    graph && graph.nodeColor(function(n) { return highlightNodes.has(n.id) ? n.color : '#111122'; });
+    allNodes.forEach(function(n){if((n.preview||'').toLowerCase().indexOf(q)>=0||n.category.toLowerCase().indexOf(q)>=0||n.id===q)highlightNodes.add(n.id);});
+    graph&&graph.nodeColor(function(n){return highlightNodes.has(n.id)?n.color:'#1a1a2a';});
   }
 
   function applyFilter() {
-    var cat = document.getElementById('catFilter').value;
-    var edge = document.getElementById('edgeFilter').value;
-    var nodes = cat ? allNodes.filter(function(n) { return n.category === cat; }) : allNodes;
-    var nodeIds = new Set(nodes.map(function(n) { return n.id; }));
-    var links = allLinks.filter(function(l) {
-      var s = String(l.source.id !== undefined ? l.source.id : l.source);
-      var t = String(l.target.id !== undefined ? l.target.id : l.target);
-      return nodeIds.has(s) && nodeIds.has(t) && (!edge || l.type === edge);
+    var cat=document.getElementById('catFilter').value, edge=document.getElementById('edgeFilter').value;
+    var nodes=cat?allNodes.filter(function(n){return n.category===cat;}):allNodes;
+    var nodeIds=new Set(nodes.map(function(n){return n.id;}));
+    var links=filterLinks().filter(function(l){
+      var s=String(l.source.id!==undefined?l.source.id:l.source),t=String(l.target.id!==undefined?l.target.id:l.target);
+      return nodeIds.has(s)&&nodeIds.has(t)&&(!edge||l.type===edge);
     });
-    graph && graph.graphData({ nodes: nodes, links: links });
+    graph&&graph.graphData({nodes:nodes,links:links});
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('search').addEventListener('input', handleSearch);
-    document.getElementById('catFilter').addEventListener('change', applyFilter);
-    document.getElementById('edgeFilter').addEventListener('change', applyFilter);
+    document.getElementById('search').addEventListener('input',handleSearch);
+    document.getElementById('catFilter').addEventListener('change',applyFilter);
+    document.getElementById('edgeFilter').addEventListener('change',applyFilter);
+    document.getElementById('nodeSzRange').addEventListener('input',function(){
+      nodeSize=parseFloat(this.value);document.getElementById('nodeSzVal').textContent=this.value;
+      graph&&graph.nodeVal(function(n){return nodeSize*(n.val||1);});
+    });
+    document.getElementById('linkOpRange').addEventListener('input',function(){
+      linkOpacity=parseFloat(this.value);document.getElementById('linkOpVal').textContent=this.value;
+      graph&&graph.linkOpacity(linkOpacity);
+    });
+    document.getElementById('btnLabels').addEventListener('click',function(){
+      showLabels=!showLabels;
+      this.style.background=showLabels?'#7c9ff5':'';
+      this.style.color=showLabels?'#0a0a0f':'';
+      if(graph){
+        graph.nodeThreeObject(function(n){return showLabels?makeLabelSprite('#'+n.id,n.color):null;});
+      }
+    });
+    document.getElementById('minWeightRange').addEventListener('input',function(){
+      minWeight=parseFloat(this.value);document.getElementById('minWeightVal').textContent=minWeight.toFixed(1);
+      if(!graph)return;
+      var shown=filterLinks();
+      document.getElementById('edgeInfo').textContent=shown.length.toLocaleString()+' edges';
+      updateStats(allLinks.length,shown.length);
+      var gd=graph.graphData(); graph.graphData({nodes:gd.nodes,links:shown});
+    });
+    document.getElementById('btnWeights').addEventListener('click',function(){
+      showWeights=!showWeights;
+      this.style.background=showWeights?'#5ecba1':'';
+      this.style.color=showWeights?'#0a0a0f':'';
+      graph&&graph.linkWidth(function(l){return showWeights?Math.max(0.3,l.weight*4):0.5;});
+    });
+    document.getElementById('btnFit').addEventListener('click',function(){graph&&graph.zoomToFit(400);});
+    document.getElementById('btnReset').addEventListener('click',resetHighlight);
 
-    document.getElementById('nodeSzRange').addEventListener('input', function() {
-      nodeSize = parseFloat(this.value);
-      document.getElementById('nodeSzVal').textContent = this.value;
-      graph && graph.nodeVal(function(n) { return nodeSize * (n.val||1); });
-    });
-    document.getElementById('linkOpRange').addEventListener('input', function() {
-      linkOpacity = parseFloat(this.value);
-      document.getElementById('linkOpVal').textContent = this.value;
-      graph && graph.linkOpacity(linkOpacity);
-    });
-    document.getElementById('btnLabels').addEventListener('click', function() {
-      showLabels = !showLabels;
-      this.textContent = showLabels ? 'Labels on' : 'Labels off';
-      this.style.background = showLabels ? '#7c9ff5' : '';
-      this.style.color = showLabels ? '#0a0a0f' : '';
-      if (graph) graph.nodeThreeObject(graph.nodeThreeObject());
-    });
-    document.getElementById('minWeightRange').addEventListener('input', function() {
-      minWeight = parseFloat(this.value);
-      document.getElementById('minWeightVal').textContent = minWeight.toFixed(1);
-      if (!graph) return;
-      var shown = filterLinks();
-      document.getElementById('edgeInfo').textContent = shown.length + ' edges shown';
-      var gd = graph.graphData();
-      graph.graphData({ nodes: gd.nodes, links: shown });
-    });
-    document.getElementById('btnWeights').addEventListener('click', function() {
-      showWeights = !showWeights;
-      this.textContent = showWeights ? 'Weights on' : 'Weights off';
-      this.style.background = showWeights ? '#5ecba1' : '';
-      this.style.color = showWeights ? '#0a0a0f' : '';
-      graph && graph.linkWidth(function(l) { return showWeights ? Math.max(0.3, l.weight * 4) : 0.5; });
-    });
-    document.getElementById('btnFit').addEventListener('click', function() { graph && graph.zoomToFit(400); });
-    document.getElementById('btnReset').addEventListener('click', function() {
-      graph && graph.cameraPosition({x:0,y:0,z:400},{x:0,y:0,z:0},800);
-    });
-
-    if (!API_KEY) {
-      document.getElementById('loadingText').textContent = 'Add ?api_key=YOUR_KEY to URL';
-      return;
-    }
-
-    loadData().then(function(gd) {
-      hideLoading();
-      buildLegend();
-      buildGraph(gd);
-    }).catch(function(err) {
-      document.getElementById('loadingText').textContent = 'Error: ' + err.message;
-    });
+    if(!API_KEY){document.getElementById('loadingText').textContent='Add ?api_key=YOUR_KEY to URL';return;}
+    loadData().then(function(gd){hideLoading();buildLegend();buildGraph(gd);}).catch(function(err){document.getElementById('loadingText').textContent='Error: '+err.message;});
   });
 })();
 </script>
