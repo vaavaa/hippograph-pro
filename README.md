@@ -264,7 +264,12 @@ docker-compose up -d
 curl http://localhost:5001/health
 ```
 
-**Graph Viewer:** `http://localhost:5002`
+**Graph Viewer (2D):** `http://localhost:5002`
+
+**Graph Viewer (3D):** `http://localhost:5002/graph3d.html?api_key=YOUR_KEY`
+- 360° rotation, zoom, node click highlighting
+- Filter by category / edge type / min weight
+- Hover tooltip: category, importance, tags, link count
 
 **MCP Connection (Claude.ai):**
 ```
