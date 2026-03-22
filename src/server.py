@@ -199,7 +199,8 @@ def create_app():
         node = get_node(node_id)
         if not node:
             return jsonify({"error": "not found"}), 404
-        return jsonify(dict(node))
+        result = {k: v for k, v in dict(node).items() if k != 'embedding'}
+        return jsonify(result)
 
     @app.route("/api/sleep/status", methods=["GET"])
     def sleep_status():
