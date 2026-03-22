@@ -83,8 +83,16 @@ function gc(c){if(!cm[c])cm[c]=CL[Object.keys(cm).length%CL.length];return cm[c]
 var AN=[],AL=[],G=null;
 var showL=false,nSz=4,lOp=0.15,showW=false,minW=0.8;
 var hlN=new Set(),hlL=new Set();
-// Node link counts cache
-var linkCounts={};
+// Node link counts cache + detail cache for tooltip
+var linkCounts={}, detailCache={};
+async function fetchDetail(id){
+  if(detailCache[id])return detailCache[id];
+  try{
+    var r=await fetch(API+'/api/node/'+id+'?api_key='+encodeURIComponent(KEY));
+    if(r.ok){var d=await r.json();detailCache[id]=d;return d;}
+  }catch(ex){}
+  return null;
+}
 function lc(t){if(t==='semantic')return'#3a5a8a';if(t==='consolidation')return'#2a6a4a';if(t==='EMOTIONAL_RESONANCE')return'#8a2050';if(t==='GENERALIZES')return'#7a5010';if(t==='INSTANTIATES')return'#5a3a7a';return'#3a3a5a';}
 function lid(l){var s=String(l.source&&l.source.id!=null?l.source.id:l.source),t=String(l.target&&l.target.id!=null?l.target.id:l.target);return{s:s,t:t};}
 function isHL(l){var id=lid(l);return hlL.has(id.s+'-'+id.t)||hlL.has(id.t+'-'+id.s);}
@@ -167,20 +175,31 @@ function reset(){
   document.getElementById('tip').style.display='none';
   var p=document.getElementById('panel');if(p){p.style.display='none';p.innerHTML='<div style="color:#555;font-size:11px">Click a node</div>';}
 }
-function onNH(node){
+var _hoverId=null;
+async function onNH(node){
   var tip=document.getElementById('tip');if(!tip)return;
-  if(!node){tip.style.display='none';return;}
-  // Technical tooltip: id, category, importance, tags, link count
+  if(!node){tip.style.display='none';_hoverId=null;return;}
+  _hoverId=node.id;
+  // Show immediately with data from graph
   var cnt=linkCounts[node.id]||0;
-  var lines=[
-    '<span style="font-weight:600;color:'+node.color+'">#'+e(node.id)+'</span>',
-    '<span style="color:#5ecba1">'+e(node.category)+'</span>',
-    (node.importance&&node.importance!=='normal'?'<span style="color:#fbbf24">&#9733; '+e(node.importance)+'</span>':''),
-    (node.emotional_intensity>0?'<span style="color:#e879a0">&#128150; '+node.emotional_intensity+'/10</span>':''),
-    '<span style="color:#666;font-size:10px">links: '+cnt+'</span>',
-  ].filter(Boolean).join('<br>');
-  tip.innerHTML=lines;
-  tip.style.display='block';
+  function render(d){
+    if(_hoverId!==node.id)return; // user moved away
+    var tags=d&&d.tags?'<div style="color:#555;font-size:10px;margin-top:2px">'+e(d.tags)+'</div>':'';
+    var tone=d&&d.emotional_tone?'<div style="color:#e879a0;font-size:10px">'+e(d.emotional_tone)+'</div>':'';
+    var imp=(d&&d.importance||node.importance);
+    var intensity=d?d.emotional_intensity:node.emotional_intensity;
+    tip.innerHTML=
+      '<div style="font-weight:600;color:'+node.color+'">&#35;'+e(node.id)+'</div>'+
+      '<div style="color:#5ecba1">'+e(d&&d.category||node.category)+'</div>'+
+      (imp&&imp!=='normal'?'<div style="color:#fbbf24;font-size:10px">&#9733; '+e(imp)+'</div>':'')+
+      (intensity>0?'<div style="color:#e879a0;font-size:10px">&#128150; '+intensity+'/10</div>':'')+
+      tone+tags+
+      '<div style="color:#555;font-size:10px;margin-top:2px">links: '+cnt+'</div>';
+    tip.style.display='block';
+  }
+  render(detailCache[node.id]||null);
+  var d=await fetchDetail(node.id);
+  render(d);
 }
 document.addEventListener('mousemove',function(ev){
   var tip=document.getElementById('tip');
