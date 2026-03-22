@@ -73,6 +73,9 @@ button:hover { background: #252540; }
     <input type="range" min="1" max="12" value="4" id="nodeSzRange">
     <div class="ctrl-row" style="margin-top:8px;margin-bottom:4px;"><span>Link opacity</span><span id="linkOpVal">0.12</span></div>
     <input type="range" min="0" max="1" step="0.02" value="0.12" id="linkOpRange">
+    <div class="ctrl-row" style="margin-top:8px;margin-bottom:4px;"><span>Min weight</span><span id="minWeightVal">0.8</span></div>
+    <input type="range" min="0" max="1" step="0.1" value="0.8" id="minWeightRange">
+    <div id="edgeInfo" style="font-size:10px;color:#666;margin-top:2px;"></div>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
       <button id="btnLabels">Labels off</button>
       <button id="btnWeights">Weights off</button>
@@ -107,7 +110,7 @@ button:hover { background: #252540; }
   }
 
   var allNodes = [], allLinks = [], graph = null;
-  var showLabels = false, nodeSize = 4, linkOpacity = 0.12, showWeights = false;
+  var showLabels = false, nodeSize = 4, linkOpacity = 0.12, showWeights = false, minWeight = 0.8;
   var highlightNodes = new Set(), highlightLinks = new Set();
 
   function setLoading(msg) {
@@ -145,21 +148,29 @@ button:hover { background: #252540; }
 
     var PRIORITY = ['consolidation','semantic','GENERALIZES','INSTANTIATES','EMOTIONAL_RESONANCE'];
     var all = data.edges || [];
-    var pri = all.filter(function(e) { return PRIORITY.indexOf(e.type) >= 0; });
-    var rest = all.filter(function(e) { return PRIORITY.indexOf(e.type) < 0; });
-    var sampled = pri.concat(rest).slice(0, 6000);
-
-    allLinks = sampled.map(function(e) {
+    // Store all links mapped, filter by weight on render
+    allLinks = all.map(function(e) {
       return { source: String(e.source), target: String(e.target), type: e.type || 'entity', weight: e.weight || 0.5 };
     });
 
+    var shown = filterLinks();
     var statsEl = document.getElementById('statsDiv');
     if (statsEl) statsEl.innerHTML =
       '<div class="stat"><strong>Nodes:</strong> ' + allNodes.length + '</div>' +
       '<div class="stat"><strong>Total edges:</strong> ' + all.length.toLocaleString() + '</div>' +
-      '<div class="stat"><strong>Showing:</strong> ' + allLinks.length + ' edges</div>';
+      '<div class="stat"><strong>Showing:</strong> ' + shown.length + ' (weight &ge;' + minWeight.toFixed(1) + ')</div>';
 
-    return { nodes: allNodes, links: allLinks };
+    return { nodes: allNodes, links: shown };
+  }
+
+  function filterLinks() {
+    var PRIORITY = ['consolidation','semantic','GENERALIZES','INSTANTIATES','EMOTIONAL_RESONANCE'];
+    var filtered = allLinks.filter(function(l) { return l.weight >= minWeight; });
+    filtered.sort(function(a,b) {
+      var pa = PRIORITY.indexOf(a.type)>=0?1:0, pb = PRIORITY.indexOf(b.type)>=0?1:0;
+      if (pa!==pb) return pb-pa; return b.weight-a.weight;
+    });
+    return filtered.slice(0, 25000);
   }
 
   function buildLegend() {
@@ -352,6 +363,15 @@ button:hover { background: #252540; }
       showLabels = !showLabels;
       this.textContent = showLabels ? 'Labels on' : 'Labels off';
       graph && graph.nodeLabel(function(n) { return showLabels ? ('#' + n.id + ' [' + n.category + ']') : ''; });
+    });
+    document.getElementById('minWeightRange').addEventListener('input', function() {
+      minWeight = parseFloat(this.value);
+      document.getElementById('minWeightVal').textContent = minWeight.toFixed(1);
+      if (!graph) return;
+      var shown = filterLinks();
+      document.getElementById('edgeInfo').textContent = shown.length + ' edges shown';
+      var gd = graph.graphData();
+      graph.graphData({ nodes: gd.nodes, links: shown });
     });
     document.getElementById('btnWeights').addEventListener('click', function() {
       showWeights = !showWeights;
