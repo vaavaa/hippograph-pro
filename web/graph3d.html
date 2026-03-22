@@ -58,7 +58,7 @@ button.on{background:#7c9ff5;color:#0a0a0f;border-color:#7c9ff5}
     <input type="range" min="0" max="1" step="0.05" value="0.15" id="opR">
     <div class="row" style="margin-top:7px"><span>Min weight</span><span id="wV">0.8</span></div>
     <input type="range" min="0" max="1" step="0.1" value="0.8" id="wR">
-    <div id="eInfo" style="font-size:10px;color:#555;margin-top:2px"></div>
+    <div id="eInfo" style="font-size:10px;color:#888;margin-top:2px"></div>
     <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap">
       <button id="btnL">Labels</button>
       <button id="btnW">Weights</button>
@@ -68,7 +68,7 @@ button.on{background:#7c9ff5;color:#0a0a0f;border-color:#7c9ff5}
   </div>
   <div class="sec"><h3>Stats</h3><div id="stats" class="stat"></div></div>
   <div class="sec"><h3>Legend</h3><div id="legend"></div></div>
-  <div class="sec"><h3>Node</h3><div id="panel"><div style="color:#555;font-size:11px">Click a node</div></div></div>
+  <div class="sec"><h3>Node</h3><div id="panel"><div style="color:#888;font-size:11px">Click a node</div></div></div>
 </div>
 <div id="container"></div>
 <script src="/3d-force-graph.min.js"></script><script>
@@ -173,7 +173,7 @@ function reset(){
   hlN.clear();hlL.clear();
   if(G){G.nodeColor(function(n){return n.color;});G.linkColor(lcFn);G.linkOpacity(lOp);}
   document.getElementById('tip').style.display='none';
-  var p=document.getElementById('panel');if(p){p.style.display='none';p.innerHTML='<div style="color:#555;font-size:11px">Click a node</div>';}
+  var p=document.getElementById('panel');if(p){p.style.display='none';p.innerHTML='<div style="color:#888;font-size:11px">Click a node</div>';}
 }
 var _hoverId=null;
 async function onNH(node){
@@ -231,7 +231,7 @@ async function showPanel(node){
       // Count links by type from current graph data
       var gd=G.graphData();var byType={};
       gd.links.forEach(function(l){var id=lid(l);if(id.s===node.id||id.t===node.id){byType[l.type]=(byType[l.type]||0)+1;}});
-      var typesHtml=Object.entries(byType).sort(function(a,b){return b[1]-a[1];}).map(function(en){return '<span style="color:'+lc(en[0])+'">'+e(en[0])+'</span><span style="color:#555">:'+en[1]+'</span>';}).join(' &nbsp;');
+      var typesHtml=Object.entries(byType).sort(function(a,b){return b[1]-a[1];}).map(function(en){return '<span style="color:'+lc(en[0])+'">'+e(en[0])+'</span><span style="color:#ccc">:'+en[1]+'</span>';}).join(' &nbsp;');
       el.innerHTML=
         '<div style="font-size:13px;font-weight:600;color:#7c9ff5;margin-bottom:4px">#'+e(node.id)+'</div>'+
         '<div style="color:#5ecba1">'+e(d.category||node.category)+'</div>'+
@@ -239,7 +239,7 @@ async function showPanel(node){
         (d.emotional_intensity>0?'<div style="color:#e879a0;font-size:10px">&#128150; '+d.emotional_intensity+'/10</div>':'')+
         (d.emotional_tone?'<div style="color:#e879a0;font-size:10px">'+e(d.emotional_tone)+'</div>':'')+
         (d.tags?'<div style="color:#ccc;font-size:10px;margin-top:3px">'+e(d.tags)+'</div>':'')+
-        (d.timestamp?'<div style="color:#444;font-size:10px">'+e(d.timestamp.substring(0,10))+'</div>':'')+
+        (d.timestamp?'<div style="color:#ccc;font-size:10px">'+e(d.timestamp.substring(0,10))+'</div>':'')+
         '<div style="font-size:10px;margin-top:5px;border-top:1px solid #1a1a2e;padding-top:5px">'+typesHtml+'</div>';
     }
   }catch(ex){}
