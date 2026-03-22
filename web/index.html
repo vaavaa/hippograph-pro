@@ -570,7 +570,9 @@
         // === Node Detail ===
         async function fetchNodeDetail(nodeId) {
             try {
-                var r = await fetch(window.location.origin + '/api/node/' + nodeId + '?api_key=' + API_KEY);
+                var loc = window.location;
+                var apiOrigin = loc.protocol + '//' + loc.hostname + ':5001';
+                var r = await fetch(apiOrigin + '/api/node/' + nodeId + '?api_key=' + API_KEY);
                 if (!r.ok) return null;
                 return await r.json();
             } catch (e) { return null; }
