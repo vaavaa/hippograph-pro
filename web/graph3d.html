@@ -184,7 +184,7 @@ async function onNH(node){
   var cnt=linkCounts[node.id]||0;
   function render(d){
     if(_hoverId!==node.id)return; // user moved away
-    var tags=d&&d.tags?'<div style="color:#555;font-size:10px;margin-top:2px">'+e(d.tags)+'</div>':'';
+    var tags=d&&d.tags?'<div style="color:#ccc;font-size:10px;margin-top:2px">'+e(d.tags)+'</div>':'';
     var tone=d&&d.emotional_tone?'<div style="color:#e879a0;font-size:10px">'+e(d.emotional_tone)+'</div>':'';
     var imp=(d&&d.importance||node.importance);
     var intensity=d?d.emotional_intensity:node.emotional_intensity;
@@ -194,7 +194,7 @@ async function onNH(node){
       (imp&&imp!=='normal'?'<div style="color:#fbbf24;font-size:10px">&#9733; '+e(imp)+'</div>':'')+
       (intensity>0?'<div style="color:#e879a0;font-size:10px">&#128150; '+intensity+'/10</div>':'')+
       tone+tags+
-      '<div style="color:#555;font-size:10px;margin-top:2px">links: '+cnt+'</div>';
+      '<div style="color:#aaa;font-size:10px;margin-top:2px">links: '+cnt+'</div>';
     tip.style.display='block';
   }
   render(detailCache[node.id]||null);
@@ -223,7 +223,7 @@ async function showPanel(node){
     '<div style="color:#5ecba1">'+e(node.category)+'</div>'+
     (node.importance&&node.importance!=='normal'?'<div style="color:#fbbf24;font-size:10px">&#9733; '+e(node.importance)+'</div>':'')+
     (node.emotional_intensity>0?'<div style="color:#e879a0;font-size:10px">&#128150; '+node.emotional_intensity+'/10</div>':'')+
-    '<div style="color:#666;font-size:10px">links: '+cnt+'</div>';
+    '<div style="color:#aaa;font-size:10px">links: '+cnt+'</div>';
   try{
     var r=await fetch(API+'/api/node/'+node.id+'?api_key='+encodeURIComponent(KEY));
     if(r.ok){
@@ -238,7 +238,7 @@ async function showPanel(node){
         (d.importance&&d.importance!=='normal'?'<div style="color:#fbbf24;font-size:10px">&#9733; '+e(d.importance)+'</div>':'')+
         (d.emotional_intensity>0?'<div style="color:#e879a0;font-size:10px">&#128150; '+d.emotional_intensity+'/10</div>':'')+
         (d.emotional_tone?'<div style="color:#e879a0;font-size:10px">'+e(d.emotional_tone)+'</div>':'')+
-        (d.tags?'<div style="color:#555;font-size:10px;margin-top:3px">'+e(d.tags)+'</div>':'')+
+        (d.tags?'<div style="color:#ccc;font-size:10px;margin-top:3px">'+e(d.tags)+'</div>':'')+
         (d.timestamp?'<div style="color:#444;font-size:10px">'+e(d.timestamp.substring(0,10))+'</div>':'')+
         '<div style="font-size:10px;margin-top:5px;border-top:1px solid #1a1a2e;padding-top:5px">'+typesHtml+'</div>';
     }
