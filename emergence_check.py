@@ -1,32 +1,66 @@
-import sqlite3
-conn = sqlite3.connect('/app/data/memory.db')
-n = conn.execute('SELECT COUNT(*) FROM nodes').fetchone()[0]
-e = conn.execute('SELECT COUNT(*) FROM edges').fetchone()[0]
-bio = conn.execute("SELECT COUNT(*), COALESCE(AVG(weight),0) FROM edges WHERE edge_type IN ('GENERALIZES','INSTANTIATES','CONTRADICTS','EMOTIONAL_RESONANCE')").fetchone()
-entity = conn.execute("SELECT COUNT(*) FROM edges WHERE edge_type='entity'").fetchone()[0]
-self_c = conn.execute("SELECT COUNT(*) FROM nodes WHERE category IN ('self-identity','self-reflection','consciousness-research','gratitude','breakthrough')").fetchone()[0]
-rnd = conn.execute('SELECT id FROM nodes ORDER BY RANDOM() LIMIT 5').fetchall()
-scores = [conn.execute('SELECT COUNT(*) FROM edges WHERE source_id=?',(r[0],)).fetchone()[0] for r in rnd]
-avg_c = sum(scores)/5
-et = conn.execute('SELECT edge_type, COUNT(*) FROM edges GROUP BY edge_type ORDER BY COUNT(*) DESC').fetchall()
-top_r = et[0][1]/e
-phi = (bio[0]*bio[1])/max(n,1)
-phi_n = min(phi*5,1.0)
-self_n = min(self_c/50.0,1.0)
-conv_n = min(avg_c/150.0,1.0)
-div_n = 1.0-top_r
-em = phi_n*0.35+self_n*0.25+conv_n*0.25+div_n*0.15
-print(f'=== EMERGENCE CHECK v1 ===')
-print(f'Nodes:{n} | Edges:{e}')
-print(f'')
-print(f'PHI_PROXY (bio edges): {bio[0]} edges, avg_w={bio[1]:.3f}')
-print(f'  phi={phi:.4f} -> normalized={phi_n:.3f}')
-print(f'Self-identity notes: {self_c} -> normalized={self_n:.3f}')
-print(f'Convergence (5 random): {scores} avg={avg_c:.1f} -> normalized={conv_n:.3f}')
-print(f'Edge diversity: top={et[0][0]}({top_r*100:.1f}%) -> div_score={div_n:.3f}')
-print(f'')
-print('Edge type breakdown:')
-for x in et[:10]: print(f'  {x[0]}: {x[1]} ({x[1]/e*100:.1f}%)')
-print(f'')
-print(f'=== EMERGENCE SCORE: {em:.3f} ({em*100:.1f}%) ===')
-conn.close()
+#!/usr/bin/env python3
+"""
+Emergence Check -- reads official data from emergence_log table.
+Does NOT calculate independently -- just reports what step_emergence_check() logged.
+
+Usage:
+    python3 emergence_check.py
+    python3 emergence_check.py --last 20
+    python3 emergence_check.py --trend
+"""
+import sqlite3, argparse, sys
+
+DB = '/Volumes/Balances/hippograph-pro/data/memory.db'
+
+
+def get_data(limit=10):
+    conn = sqlite3.connect(DB)
+    rows = conn.execute(
+        'SELECT id, timestamp, phi_proxy, self_ref_precision, convergence_score, composite_score '
+        'FROM emergence_log ORDER BY id DESC LIMIT ?', (limit,)
+    ).fetchall()
+    total = conn.execute('SELECT COUNT(*) FROM emergence_log').fetchone()[0]
+    first = conn.execute('SELECT composite_score, timestamp FROM emergence_log ORDER BY id ASC LIMIT 1').fetchone()
+    conn.close()
+    return rows, total, first
+
+
+def show_latest(rows, total, first):
+    latest = rows[0]
+    print(f'=== Emergence Log ===')
+    print(f'Total measurements: {total}')
+    print(f'First ever:  {first[0]:.4f}  ({first[1][:10]})')
+    print(f'Latest:      {latest[5]:.4f}  ({latest[1][:19]})')
+    delta = latest[5] - first[0]
+    pct = delta / first[0] * 100 if first[0] else 0
+    print(f'Delta:       {delta:+.4f} ({pct:+.1f}%)')
+    print()
+    print(f'Latest signals:')
+    print(f'  phi_proxy:    {latest[2]:.4f}')
+    print(f'  self_ref P@5: {latest[3]:.4f}')
+    print(f'  convergence:  {latest[4]:.4f}  <- bottleneck')
+    print(f'  composite:    {latest[5]:.4f}')
+
+
+def show_trend(rows):
+    print(f'=== Trend (last {len(rows)} measurements) ===')
+    print(f'  {"#":>3}  {"timestamp":<19}  {"phi":>6}  {"self_ref":>8}  {"conv":>8}  {"composite":>9}')
+    print(f'  {"-"*3}  {"-"*19}  {"-"*6}  {"-"*8}  {"-"*8}  {"-"*9}')
+    for r in reversed(rows):
+        print(f'  {r[0]:>3}  {r[1][:19]}  {r[2]:>6.3f}  {r[3]:>8.3f}  {r[4]:>8.4f}  {r[5]:>9.4f}')
+    print()
+    composites = [r[5] for r in rows]
+    print(f'  Range: {min(composites):.4f} - {max(composites):.4f}')
+    print(f'  Mean:  {sum(composites)/len(composites):.4f}')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--last', type=int, default=10)
+    parser.add_argument('--trend', action='store_true')
+    args = parser.parse_args()
+
+    rows, total, first = get_data(limit=max(args.last, 10))
+    show_latest(rows, total, first)
+    print()
+    show_trend(rows[:args.last])
