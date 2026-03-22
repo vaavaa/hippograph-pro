@@ -737,6 +737,103 @@ def restore_snapshot(snapshot_path, db_path):
 
 
 
+
+
+def step_entity_merge(db_path, dry_run=False):
+    """Step 5e: Link notes that share synonym-equivalent entities (item #46).
+
+    For existing notes already in DB: finds entity pairs where one name
+    is a synonym of another (e.g. 'ml' and 'machine learning') and adds
+    entity edges between notes linked to these entities.
+
+    Does NOT delete any entity nodes or edges — only adds new connections.
+    Safe to run multiple times (INSERT OR IGNORE).
+    """
+    print("\n=== Step 5e: Entity Concept Merge (item #46) ===")
+    try:
+        from entity_extractor import SYNONYMS
+    except ImportError:
+        print("  SYNONYMS not available — skipping")
+        return {"skipped": True}
+
+    # Build reverse map: alias -> canonical (only pairs where alias != canonical)
+    alias_to_canonical = {}
+    for alias, canonical in SYNONYMS.items():
+        if alias != canonical:
+            alias_to_canonical[alias] = canonical
+
+    if not alias_to_canonical:
+        print("  No synonym pairs found")
+        return {"pairs": 0, "edges_created": 0}
+
+    conn = sqlite3.connect(db_path)
+    edges_created = 0
+    pairs_found = 0
+
+    for alias, canonical in alias_to_canonical.items():
+        # Find entity IDs for both alias and canonical
+        alias_rows = conn.execute(
+            "SELECT id FROM entities WHERE LOWER(name) = ?", (alias,)
+        ).fetchall()
+        canonical_rows = conn.execute(
+            "SELECT id FROM entities WHERE LOWER(name) = ?", (canonical,)
+        ).fetchall()
+
+        if not alias_rows or not canonical_rows:
+            continue
+
+        # Find notes linked to alias entities
+        alias_eids = [r[0] for r in alias_rows]
+        canonical_eids = [r[0] for r in canonical_rows]
+
+        alias_notes = set()
+        for eid in alias_eids:
+            rows = conn.execute(
+                "SELECT node_id FROM node_entities WHERE entity_id = ?", (eid,)
+            ).fetchall()
+            alias_notes.update(r[0] for r in rows)
+
+        canonical_notes = set()
+        for eid in canonical_eids:
+            rows = conn.execute(
+                "SELECT node_id FROM node_entities WHERE entity_id = ?", (eid,)
+            ).fetchall()
+            canonical_notes.update(r[0] for r in rows)
+
+        # Cross-link: alias notes <-> canonical notes via entity edges
+        new_pairs = []
+        for an in alias_notes:
+            for cn in canonical_notes:
+                if an != cn:
+                    new_pairs.append((an, cn))
+
+        if not new_pairs:
+            continue
+
+        pairs_found += 1
+        if dry_run:
+            print(f"  [DRY] '{alias}' <-> '{canonical}': {len(new_pairs)} new edges")
+            continue
+
+        for an, cn in new_pairs:
+            conn.execute(
+                "INSERT OR IGNORE INTO edges (source_id, target_id, edge_type, weight) VALUES (?, ?, 'entity', 0.6)",
+                (an, cn)
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO edges (source_id, target_id, edge_type, weight) VALUES (?, ?, 'entity', 0.6)",
+                (cn, an)
+            )
+            edges_created += 2
+
+        if pairs_found <= 3:
+            print(f"  '{alias}' <-> '{canonical}': {len(new_pairs)} note pairs linked")
+
+    conn.commit()
+    conn.close()
+    print(f"  Synonym pairs processed: {pairs_found}, edges created: {edges_created}")
+    return {"pairs": pairs_found, "edges_created": edges_created}
+
 def step_supersedes_scan(db_path, dry_run=False):
     """Step 5d: Detect and create SUPERSEDES edges between temporally ordered similar notes.
 
@@ -1316,6 +1413,12 @@ def run_all(db_path, dry_run=False):
     except Exception as e:
         print(f"  ERROR in supersedes scan: {e}")
         results['supersedes'] = {"error": str(e)}
+
+    try:
+        results['entity_merge'] = step_entity_merge(db_path, dry_run)
+    except Exception as e:
+        print(f"  ERROR in entity merge: {e}")
+        results['entity_merge'] = {"error": str(e)}
 
     # Update last_sleep_at timestamp
     if not dry_run:

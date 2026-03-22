@@ -492,6 +492,14 @@ def get_or_create_entity(name, entity_type="concept"):
     This prevents case variants (git/Git/GIT) from creating duplicate nodes.
     """
     name_lower = name.lower().strip()
+    # Concept Merging (item #46): resolve synonyms to canonical form at entity creation.
+    # "ML" -> "machine learning", "нейронная сеть" -> "neural network", etc.
+    # Same SYNONYMS dict used by normalize_query() — no extra dependencies.
+    try:
+        from entity_extractor import SYNONYMS
+        name_lower = SYNONYMS.get(name_lower, name_lower)
+    except Exception:
+        pass  # never block add_note on normalization errors
     with get_connection() as conn:
         cursor = conn.cursor()
         # Match by normalized name AND type - different types are different entities
