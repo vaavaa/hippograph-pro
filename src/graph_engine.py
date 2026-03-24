@@ -814,9 +814,9 @@ def search_with_activation(query, limit=5, iterations=ACTIVATION_ITERATIONS, dec
         if not node:
             continue
             
-        # Exclude abstract-topic nodes from retrieval results
+        # Exclude meta-nodes from retrieval results
         # (they exist for spreading activation only, not as search results)
-        if node.get("category") == 'abstract-topic':
+        if node.get("category") in ('abstract-topic', 'atomic-fact'):
             continue
 
         # Filter by category if specified

@@ -1657,6 +1657,195 @@ def step_topic_linking_kmeans(db_path, dry_run=False, n_topics=None):
     finally:
         conn.close()
 
+
+
+def extract_atomic_facts(text, nlp):
+    """
+    Extract atomic facts from text using regex + spaCy.
+    Focus on numeric facts (most reliable) + clean SVO.
+    Max 5 facts per note.
+    """
+    import re
+    facts = []
+    NOISE_WORDS = {'next', 'step', 'see', 'use', 'run', 'get',
+                   'list', 'item', 'note', 'TODO', 'done'}
+
+    # 1. Numeric facts with meaningful context
+    # Pattern: word(s) + number+unit OR number+unit + word(s)
+    num_patterns = [
+        r'([A-Za-z][\w@#_-]{2,}[\s:=]+[0-9]+\.?[0-9]*\s*[%kKmMbBpp]*)'  ,
+        r'([0-9]+\.?[0-9]*\s*[%kKmMbBpp]+\s+[A-Za-z][\w@#_-]{3,})'  ,
+        r'(Recall@[0-9]+\s*[=:]?\s*[0-9]+\.?[0-9]*[%]?)'  ,
+    ]
+    for pat in num_patterns:
+        for m in re.finditer(pat, text):
+            fact = m.group(1).strip().rstrip('.,;:')
+            # Quality filter: min length, no leading digits only, no noise
+            words = fact.split()
+            if (8 <= len(fact) <= 60
+                    and len(words) >= 2
+                    and not any(w.lower() in NOISE_WORDS for w in words)
+                    and fact not in facts):
+                facts.append(fact)
+        if len(facts) >= 3:
+            break
+
+    # 2. SVO triplets via spaCy — only if subject is a known entity
+    if len(facts) < 5:
+        try:
+            doc = nlp(text[:800])
+            entities = {ent.text.lower() for ent in doc.ents}
+            for token in doc:
+                if token.dep_ == 'ROOT' and token.pos_ == 'VERB':
+                    subj = [t for t in token.lefts
+                            if t.dep_ in ('nsubj', 'nsubjpass') and len(t.text) > 2]
+                    obj  = [t for t in token.rights
+                            if t.dep_ in ('dobj', 'attr') and len(t.text) > 2]
+                    if subj and obj:
+                        s, v, o = subj[0].text, token.lemma_, obj[0].text
+                        # Only keep if subject or object is a named entity
+                        if (s.lower() in entities or o.lower() in entities):
+                            fact = f'{s} {v} {o}'
+                            if (8 < len(fact) < 70
+                                    and fact not in facts
+                                    and v.lower() not in NOISE_WORDS):
+                                facts.append(fact)
+                if len(facts) >= 5:
+                    break
+        except Exception:
+            pass
+
+    return facts[:5]
+
+
+def step_atomic_facts(db_path, dry_run=False, max_notes=50):
+    """
+    Item #43: Atomic Fact Extraction.
+    For each eligible note: extract SVO triplets + numeric facts,
+    create micro-nodes with PART_OF edges back to parent.
+
+    Eligible categories: milestone, benchmark, breakthrough,
+    architecture-decision, learned-skill, research
+    NOT: self-reflection, emotional-reflection, working-memory
+
+    Max 5 facts per note. Facts stored as fact_node with
+    category='atomic-fact'. Excluded from retrieval results
+    (same as abstract-topic) but activate through spreading.
+    """
+    import sqlite3
+    from datetime import datetime
+
+    ELIGIBLE = {'milestone', 'benchmark', 'breakthrough',
+                'architecture-decision', 'learned-skill', 'research',
+                'project-milestone', 'project-planning'}
+    SKIP = {'self-reflection', 'emotional-reflection',
+            'working-memory', 'abstract-topic', 'atomic-fact'}
+
+    try:
+        import spacy
+        try:
+            nlp = spacy.load('en_core_web_sm')
+        except OSError:
+            nlp = spacy.load('xx_ent_wiki_sm')
+    except Exception as e:
+        print(f'  [atomic-facts] spaCy not available: {e}')
+        return {'error': str(e)}
+
+    conn = sqlite3.connect(db_path)
+    try:
+        # Get eligible notes not yet processed
+        processed = set(
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT source_id FROM edges WHERE edge_type='PART_OF'"
+            ).fetchall()
+        )
+
+        rows = conn.execute(
+            'SELECT id, content, category FROM nodes '
+            'WHERE category NOT IN ({}) '
+            'ORDER BY id DESC LIMIT ?'.format(
+                ','.join("'" + s + "'" for s in SKIP)
+            ), (max_notes,)
+        ).fetchall()
+
+        eligible = [
+            (nid, content, cat) for nid, content, cat in rows
+            if cat in ELIGIBLE and nid not in processed
+        ]
+
+        if not eligible:
+            print(f'  [atomic-facts] No eligible notes to process')
+            return {'created': 0, 'edges': 0}
+
+        print(f'  [atomic-facts] Processing {len(eligible)} notes...')
+
+        fact_nodes_created = 0
+        edges_created = 0
+        now = datetime.now().isoformat()
+
+        for parent_id, content, category in eligible:
+            facts = extract_atomic_facts(content, nlp)
+            if not facts:
+                continue
+
+            for fact in facts:
+                fact_content = f'FACT: {fact}\nSource category: {category}'
+
+                if dry_run:
+                    fact_nodes_created += 1
+                    edges_created += 1
+                    continue
+
+                # Check duplicate
+                existing = conn.execute(
+                    "SELECT id FROM nodes WHERE category='atomic-fact' AND content=?",
+                    (fact_content,)
+                ).fetchone()
+
+                if existing:
+                    fact_id = existing[0]
+                else:
+                    conn.execute(
+                        'INSERT INTO nodes (content, category, importance, '
+                        'emotional_intensity, timestamp) VALUES (?, ?, ?, ?, ?)',
+                        (fact_content, 'atomic-fact', 'normal', 1, now)
+                    )
+                    fact_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+                    fact_nodes_created += 1
+
+                # PART_OF edge: fact -> parent
+                exists_edge = conn.execute(
+                    "SELECT 1 FROM edges WHERE source_id=? AND target_id=? "
+                    "AND edge_type='PART_OF'",
+                    (fact_id, parent_id)
+                ).fetchone()
+                if not exists_edge:
+                    conn.execute(
+                        'INSERT INTO edges (source_id, target_id, edge_type, weight, created_at) '
+                        'VALUES (?, ?, ?, ?, ?)',
+                        (fact_id, parent_id, 'PART_OF', 0.8, now)
+                    )
+                    # Reverse: parent -> fact
+                    conn.execute(
+                        'INSERT INTO edges (source_id, target_id, edge_type, weight, created_at) '
+                        'VALUES (?, ?, ?, ?, ?)',
+                        (parent_id, fact_id, 'PART_OF', 0.8, now)
+                    )
+                    edges_created += 2
+
+        if not dry_run:
+            conn.commit()
+
+        print(f'  [atomic-facts] Facts created: {fact_nodes_created}, edges: {edges_created}')
+        return {'created': fact_nodes_created, 'edges': edges_created}
+
+    except Exception as e:
+        print(f'  [atomic-facts] ERROR: {e}')
+        import traceback; traceback.print_exc()
+        return {'error': str(e)}
+    finally:
+        conn.close()
+
 def run_all(db_path, dry_run=False):
     """Run all sleep-time compute steps."""
     t0 = time.time()
@@ -1776,6 +1965,12 @@ def run_all(db_path, dry_run=False):
     except Exception as e:
         print(f"  ERROR in topic linking kmeans: {e}")
         results['topic_kmeans'] = {"error": str(e)}
+
+    try:
+        results['atomic_facts'] = step_atomic_facts(db_path, dry_run)
+    except Exception as e:
+        print(f"  ERROR in atomic facts: {e}")
+        results['atomic_facts'] = {"error": str(e)}
 
     # Update last_sleep_at timestamp
     if not dry_run:
