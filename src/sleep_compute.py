@@ -1451,9 +1451,9 @@ def step_topic_linking_tfidf(db_path, dry_run=False, min_cluster_size=3):
                 )
             else:
                 conn.execute(
-                    'INSERT INTO nodes (content, category, importance, emotional_intensity) '
-                    'VALUES (?, ?, ?, ?)',
-                    (topic_content, 'abstract-topic', 'critical', 3)
+                    'INSERT INTO nodes (content, category, importance, emotional_intensity, timestamp) '
+                    'VALUES (?, ?, ?, ?, ?)',
+                    (topic_content, 'abstract-topic', 'critical', 3, __import__('datetime').datetime.now().isoformat())
                 )
                 topic_node_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
                 topic_nodes_created += 1
@@ -1617,9 +1617,9 @@ def step_topic_linking_kmeans(db_path, dry_run=False, n_topics=None):
                              (topic_content, topic_node_id))
             else:
                 conn.execute(
-                    'INSERT INTO nodes (content, category, importance, emotional_intensity) '
-                    'VALUES (?, ?, ?, ?)',
-                    (topic_content, 'abstract-topic', 'critical', 3)
+                    'INSERT INTO nodes (content, category, importance, emotional_intensity, timestamp) '
+                    'VALUES (?, ?, ?, ?, ?)',
+                    (topic_content, 'abstract-topic', 'critical', 3, __import__('datetime').datetime.now().isoformat())
                 )
                 topic_node_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
                 topic_nodes_created += 1
