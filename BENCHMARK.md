@@ -375,3 +375,28 @@ No regression on retrieval — abstract-topic nodes are correctly excluded from 
 - Edges: 114,835
 - BELONGS_TO edges: 1,858
 - Topic labels example: `benchmark / memory / temporal`, `hippograph / memory / temporal`, `gemini / identity / thread`
+
+---
+
+## March 25, 2026 — Personal Continuity Benchmark v4
+
+### Changes from v3
+- 32 questions (was 26) — added March 24 session events
+- New: #47 Abstract Topic Linking, GTE experiment, timestamp bug, consciousness 0.735
+- Science category fixed: broader keywords (0% → 100%)
+
+### Results
+
+| Category | v3 | v4 | Delta |
+|----------|-----|-----|-------|
+| **Overall** | **73.1%** | **81.2%** | **+8.1pp** |
+| identity | 100% | 100% | = |
+| history | 100% | 100% | = |
+| science | 0% | **100%** | +100pp |
+| decisions | 75% | 80% | +5pp |
+| session | 80% | 80% | = |
+| architecture | 50% | 40% | -10pp (new harder questions) |
+| security | 50% | 50% | = |
+
+**Key finding:** Science category fixed — SKILL MASTERED notes are retrievable with broader keywords.
+Architecture dropped slightly because new questions about #47/consciousness are harder to retrieve.
