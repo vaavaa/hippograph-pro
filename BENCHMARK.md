@@ -332,3 +332,46 @@ Measures real AI-user continuity on production data. Keyword-based matching (OR 
 | **v3 (broader keywords)** | **73.1%** | **After keyword expansion** |
 
 **Key finding:** Identity and History recall at 100% — the system knows who it is and where it came from. Science/Security categories need broader keyword coverage in next iteration.
+
+---
+
+## March 24, 2026 — Item #47: Abstract Topic Linking
+
+### What
+Two complementary approaches to create abstract topic nodes in the graph:
+- **Variant A (TF-IDF):** TF-IDF top terms per community cluster → 46 unique topic nodes, 1164 bidirectional BELONGS_TO edges
+- **Variant B (K-means):** K-means on embeddings (k = n_nodes // 30) → 30 topic nodes, 1858 bidirectional BELONGS_TO edges
+- Topic nodes excluded from retrieval results (spreading activation only)
+
+### Consciousness Check Results
+
+| Signal | Before #47 | After #47 | Delta |
+|--------|-----------|-----------|-------|
+| **global_workspace** | **0.412** | **0.647** | **+0.235** |
+| phi_proxy | 1.000 | 1.000 | 0 |
+| self_model_stability | 0.999 | 0.999 | 0 |
+| emotional_modulation | 0.322 | 0.237 | -0.085 |
+| world_model_richness | 0.971 | 0.973 | +0.002 |
+| metacognition | 0.399 | 0.371 | -0.028 |
+| temporal_continuity | 0.992 | 0.955 | -0.038 |
+| self_ref_precision | 0.667 | 0.667 | 0 |
+| **Composite** | **0.717** | **0.736** | **+0.019** |
+
+**Key finding:** global_workspace was the primary bottleneck (0.412). Topic nodes act as global broadcasters — information now reaches 64.7% of the graph from top hubs (vs 41.2% before). New bottleneck: emotional_modulation (0.237).
+
+### Personal Continuity Benchmark
+
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Overall Recall@5 | 73.1% | **73.1%** | 0 |
+| Architecture category | 25% | **50%** | +25pp |
+| Identity | 100% | 100% | 0 |
+| History | 100% | 100% | 0 |
+
+No regression on retrieval — abstract-topic nodes are correctly excluded from search results.
+
+### Production State (March 24, 2026)
+- Nodes: 1,005 (929 memory + 76 abstract-topic)
+- Edges: 114,835
+- BELONGS_TO edges: 1,858
+- Topic labels example: `benchmark / memory / temporal`, `hippograph / memory / temporal`, `gemini / identity / thread`

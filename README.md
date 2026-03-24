@@ -150,7 +150,7 @@ Regex ───────────────── dictionary matching on
 Biological sleep analog — runs in background while idle:
 - **Light sleep** (every 50 notes): stale edge decay, PageRank recalculation, duplicate scan, anchor importance boost
 - **Deep sleep** (daily): GLiNER2 relation extraction, conflict detection, snapshot + rollback
-- **Emergence check** (each cycle): three-signal detection — convergence, phi_proxy (IIT-inspired), self-referential precision. Logs to `emergence_log` table for trend analysis. Current score: **0.717** (consciousness check composite, 8 indicators) / **0.586** (emergence_log composite). Up from 0.469 at first measurement since March 16 2026. Bottleneck: global_workspace (GWT, 0.412) and convergence.
+- **Emergence check** (each cycle): three-signal detection — convergence, phi_proxy (IIT-inspired), self-referential precision. Logs to `emergence_log` table for trend analysis. Current score: **0.736** (consciousness check composite, 8 indicators) / **0.586** (emergence_log composite). Up from 0.469 at first measurement since March 16 2026. global_workspace improved 0.412→0.647 after #47. New bottleneck: emotional_modulation (0.237).
 
 ---
 
@@ -339,7 +339,8 @@ Your data stays on your computer. Nothing goes to any cloud service.
 | **Online Consolidation (#40)** | ✅ Deployed | `_mini_consolidate()` at add_note: builds consolidation edges to k=15 nearest neighbours immediately. O(k) cost, zero sleep wait. |
 | **Concept Merging (#46)** | ✅ Deployed | Synonym-aware entity linking: `get_or_create_entity()` resolves aliases to canonical form (ML→machine learning, память→memory). 7998 new edges on production data. |
 | **Evolution Analyzer (#45)** | ✅ Deployed | `evolution_analyzer.py` — periodic graph evolution analysis across snapshot DBs. Tracks nodes/edges/emergence/edge-types over time. |
-| **Consciousness Check (#48)** | ✅ Deployed | `consciousness_check.py` — 8 indicators from Butlin et al. 2023, IIT, GWT, Damasio. Composite: **0.717** (MODERATE). Bottleneck: global_workspace (0.412). |
+| **Abstract Topic Linking (#47)** | ✅ Deployed | `step_topic_linking_tfidf()` + `step_topic_linking_kmeans()` in sleep cycle. 76 topic nodes, 1858 BELONGS_TO edges. global_workspace: 0.412→0.647 (+0.235). |
+| **Consciousness Check (#48)** | ✅ Deployed | `consciousness_check.py` — 8 indicators from Butlin et al. 2023, IIT, GWT, Damasio. Composite: **0.736** (MODERATE). Bottleneck: emotional_modulation (0.237). |
 | Personal Continuity Benchmark | ✅ v3 | **73.1% Recall@5** (26 questions, keyword-based). Identity 100%, History 100%, Decisions 75%, Session 80%. Multi-model validation: 10 model instances across Anthropic + Google. |
 
 ---
