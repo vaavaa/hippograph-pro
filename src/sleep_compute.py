@@ -1846,6 +1846,317 @@ def step_atomic_facts(db_path, dry_run=False, max_notes=50):
     finally:
         conn.close()
 
+
+
+def extract_enriched_fragments(node_id, content, category, emotional_tone,
+                               emotional_reflection, nlp):
+    """
+    Extract enriched atomic fragments from a memory/note.
+    Each fragment = fact + emotional context + narrative from source.
+    This is the "Enriched Atomic Fragment" approach:
+    instead of bare facts, each fragment carries the full context
+    so it can stand alone without a parent node.
+
+    Returns list of dicts:
+      {fact, context, emotion, narrative, source_id}
+    """
+    import re
+
+    fragments = []
+    NOISE = {'next', 'step', 'see', 'use', 'run', 'get', 'list',
+             'item', 'note', 'TODO', 'done', 'also'}
+
+    # Derive emotion and narrative from source
+    emotion = (emotional_tone or 'neutral').split(',')[0].strip()
+    narrative = (emotional_reflection or '').strip()
+    if len(narrative) > 120:
+        narrative = narrative[:117] + '...'
+
+    # 1. Numeric facts with context
+    num_patterns = [
+        r'([A-Za-z][\w@#_-]{2,}[\s:=]+[0-9]+\.?[0-9]*\s*[%kKmMpp]*)'  ,
+        r'([0-9]+\.?[0-9]*\s*[%pp]+\s+[A-Za-z][\w@#_-]{3,})'  ,
+        r'(Recall@[0-9]+\s*[=:]?\s*[0-9]+\.?[0-9]*[%]?)'  ,
+        r'([A-Z][\w-]{2,}\s*[=:]\s*[0-9]+\.?[0-9]*)'  ,
+    ]
+    seen_facts = set()
+    for pat in num_patterns:
+        for m in re.finditer(pat, content):
+            fact = m.group(1).strip().rstrip(',.:;')
+            words = fact.split()
+            if (8 <= len(fact) <= 70
+                    and len(words) >= 2
+                    and not any(w.lower() in NOISE for w in words)
+                    and fact not in seen_facts):
+                seen_facts.add(fact)
+                fragments.append({
+                    'fact': fact,
+                    'context': f'{category} memory',
+                    'emotion': emotion,
+                    'narrative': narrative,
+                    'source_id': node_id,
+                })
+        if len(fragments) >= 3:
+            break
+
+    # 2. SVO triplets with named entity filter
+    if len(fragments) < 5 and nlp:
+        try:
+            doc = nlp(content[:800])
+            entities = {ent.text.lower() for ent in doc.ents}
+            for token in doc:
+                if token.dep_ == 'ROOT' and token.pos_ == 'VERB':
+                    subj = [t for t in token.lefts
+                            if t.dep_ in ('nsubj', 'nsubjpass') and len(t.text) > 2]
+                    obj  = [t for t in token.rights
+                            if t.dep_ in ('dobj', 'attr') and len(t.text) > 2]
+                    if subj and obj:
+                        s, v, o = subj[0].text, token.lemma_, obj[0].text
+                        if s.lower() in entities or o.lower() in entities:
+                            fact = f'{s} {v} {o}'
+                            if (8 < len(fact) < 70
+                                    and fact not in seen_facts
+                                    and v.lower() not in NOISE):
+                                seen_facts.add(fact)
+                                fragments.append({
+                                    'fact': fact,
+                                    'context': f'{category} memory',
+                                    'emotion': emotion,
+                                    'narrative': narrative,
+                                    'source_id': node_id,
+                                })
+                if len(fragments) >= 5:
+                    break
+        except Exception:
+            pass
+
+    return fragments[:5]
+
+
+def step_enriched_fragments(db_path, dry_run=False, variant=1, max_notes=200):
+    """
+    Enriched Atomic Fragments experiment.
+
+    variant=1 (Soft):   fragments created, parent demoted to importance=low
+    variant=2 (Medium): fragments created, parent DELETED
+    variant=3 (Radical): changes ingestion pipeline (handled separately)
+
+    Fragment node content format:
+        FRAGMENT: {fact}
+        CONTEXT: {context}
+        EMOTION: {emotion}
+        NARRATIVE: {narrative}
+        SOURCE: #{source_id}
+    """
+    import sqlite3
+    from datetime import datetime
+
+    ELIGIBLE = {'milestone', 'benchmark', 'breakthrough',
+                'architecture-decision', 'learned-skill', 'research',
+                'project-milestone', 'project-planning'}
+    SKIP = {'self-reflection', 'emotional-reflection',
+            'working-memory', 'abstract-topic',
+            'atomic-fact', 'enriched-fragment'}
+
+    try:
+        import spacy
+        try:
+            nlp = spacy.load('en_core_web_sm')
+        except OSError:
+            nlp = spacy.load('xx_ent_wiki_sm')
+    except Exception as e:
+        print(f'  [enriched] spaCy unavailable: {e}')
+        nlp = None
+
+    conn = sqlite3.connect(db_path)
+    try:
+        # Find already-processed parents
+        processed = set(
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT source_id FROM edges "
+                "WHERE edge_type='PART_OF'"
+            ).fetchall()
+        )
+
+        rows = conn.execute(
+            'SELECT id, content, category, emotional_tone, '  
+            'emotional_reflection, importance FROM nodes '
+            'WHERE category NOT IN ({skip}) '
+            'ORDER BY id DESC LIMIT {lim}'.format(
+                skip=','.join('"' + s + '"' for s in SKIP),
+                lim=max_notes
+            )
+        ).fetchall()
+
+        eligible = [
+            r for r in rows
+            if r[2] in ELIGIBLE and r[0] not in processed
+        ]
+
+        if not eligible:
+            print(f'  [enriched] No eligible memories to process')
+            return {'created': 0, 'edges': 0, 'demoted': 0}
+
+        print(f'  [enriched v{variant}] Processing {len(eligible)} memories...')
+
+        now = datetime.now().isoformat()
+        fragments_created = 0
+        edges_created = 0
+        parents_demoted = 0
+        parents_deleted = 0
+
+        for parent_id, content, category, etone, ereflect, importance in eligible:
+            frags = extract_enriched_fragments(
+                parent_id, content, category, etone, ereflect, nlp
+            )
+            if not frags:
+                continue
+
+            for frag in frags:
+                frag_content = (
+                    f'FRAGMENT: {frag["fact"]}\n'
+                    f'CONTEXT: {frag["context"]}\n'
+                    f'EMOTION: {frag["emotion"]}\n'
+                    f'NARRATIVE: {frag["narrative"]}\n'
+                    f'SOURCE: #{parent_id}'
+                )
+
+                if dry_run:
+                    fragments_created += 1
+                    edges_created += 2
+                    continue
+
+                # Check duplicate
+                existing = conn.execute(
+                    "SELECT id FROM nodes WHERE category='enriched-fragment' "
+                    "AND content=?", (frag_content,)
+                ).fetchone()
+
+                if existing:
+                    frag_id = existing[0]
+                else:
+                    # Generate embedding for fragment
+                    try:
+                        import sys, os
+                        sys.path.insert(0, os.path.dirname(__file__))
+                        from stable_embeddings import get_model
+                        model = get_model()
+                        # Embed ONLY the fact for precise semantic matching
+                        # (narrative would dilute the embedding signal)
+                        emb = model.encode(frag['fact'])[0]
+                        emb_bytes = emb.astype('float32').tobytes()
+                    except Exception:
+                        emb_bytes = None
+                    conn.execute(
+                        'INSERT INTO nodes '
+                        '(content, category, importance, emotional_intensity,'
+                        ' emotional_tone, timestamp, embedding) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        (frag_content, 'enriched-fragment', 'normal',
+                         3, frag['emotion'], now, emb_bytes)
+                    )
+                    frag_id = conn.execute(
+                        'SELECT last_insert_rowid()'
+                    ).fetchone()[0]
+                    fragments_created += 1
+
+                # Bidirectional PART_OF edges
+                for src, tgt in [(frag_id, parent_id), (parent_id, frag_id)]:
+                    exists = conn.execute(
+                        "SELECT 1 FROM edges WHERE source_id=? "
+                        "AND target_id=? AND edge_type='PART_OF'",
+                        (src, tgt)
+                    ).fetchone()
+                    if not exists:
+                        conn.execute(
+                            'INSERT INTO edges '
+                            '(source_id, target_id, edge_type, weight, created_at)'
+                            ' VALUES (?, ?, ?, ?, ?)',
+                            (src, tgt, 'PART_OF', 0.85, now)
+                        )
+                        edges_created += 1
+
+            # VARIANT 1: demote parent
+            if not dry_run and variant == 1 and frags:
+                conn.execute(
+                    "UPDATE nodes SET importance='low' WHERE id=?",
+                    (parent_id,)
+                )
+                parents_demoted += 1
+
+            # VARIANT 2: delete parent
+            elif not dry_run and variant == 2 and frags:
+                conn.execute(
+                    "DELETE FROM nodes WHERE id=?", (parent_id,)
+                )
+                conn.execute(
+                    "DELETE FROM edges WHERE source_id=? OR target_id=?",
+                    (parent_id, parent_id)
+                )
+                parents_deleted += 1
+
+        # Link fragments to semantically similar existing nodes
+        # This ensures fragments are reachable via spreading activation
+        if not dry_run and fragments_created > 0:
+            try:
+                import numpy as np
+                from ann_index import get_ann_index
+                ann = get_ann_index()
+                if ann.enabled and ann.index and ann.index.get_current_count() > 0:
+                    new_frags = conn.execute(
+                        "SELECT id, embedding FROM nodes WHERE category='enriched-fragment' "
+                        "AND embedding IS NOT NULL"
+                    ).fetchall()
+                    semantic_links = 0
+                    for frag_id, emb_bytes in new_frags:
+                        emb = np.frombuffer(emb_bytes, dtype=np.float32)
+                        neighbors = ann.search(emb, k=5, min_similarity=0.6)
+                        for neighbor_id, sim in neighbors:
+                            if neighbor_id == frag_id:
+                                continue
+                            cat = conn.execute(
+                                'SELECT category FROM nodes WHERE id=?', (neighbor_id,)
+                            ).fetchone()
+                            if not cat or cat[0] in ('enriched-fragment', 'abstract-topic', 'atomic-fact'):
+                                continue
+                            exists = conn.execute(
+                                "SELECT 1 FROM edges WHERE source_id=? AND target_id=?",
+                                (frag_id, neighbor_id)
+                            ).fetchone()
+                            if not exists:
+                                conn.execute(
+                                    'INSERT INTO edges (source_id, target_id, edge_type, weight, created_at)'
+                                    ' VALUES (?, ?, ?, ?, ?)',
+                                    (frag_id, neighbor_id, 'semantic', sim, now)
+                                )
+                                semantic_links += 1
+                    conn.commit()
+                    print(f'  [enriched v{variant}] Semantic links to graph: {semantic_links}')
+            except Exception as e:
+                print(f'  [enriched] semantic linking failed: {e}')
+
+        if not dry_run:
+            conn.commit()
+
+        print(f'  [enriched v{variant}] Fragments: {fragments_created}, '
+              f'edges: {edges_created}, '
+              f'demoted: {parents_demoted}, deleted: {parents_deleted}')
+
+        return {
+            'created': fragments_created,
+            'edges': edges_created,
+            'demoted': parents_demoted,
+            'deleted': parents_deleted,
+            'variant': variant,
+        }
+
+    except Exception as e:
+        print(f'  [enriched] ERROR: {e}')
+        import traceback; traceback.print_exc()
+        return {'error': str(e)}
+    finally:
+        conn.close()
+
 def run_all(db_path, dry_run=False):
     """Run all sleep-time compute steps."""
     t0 = time.time()

@@ -88,7 +88,16 @@ def create_app():
             return jsonify({"error": "content required"}), 400
         
         from graph_engine import add_note_with_links
-        result = add_note_with_links(content, category)
+        result = add_note_with_links(
+            content, category,
+            importance=data.get("importance", "normal"),
+            force=data.get("force", False),
+            emotional_tone=data.get("emotional_tone"),
+            emotional_intensity=data.get("emotional_intensity", 5),
+            emotional_reflection=data.get("emotional_reflection"),
+            tags=data.get("tags"),
+            skip_ner=data.get("skip_ner", False),
+        )
         # Notify sleep scheduler that a note was added (for threshold trigger)
         from sleep_scheduler import notify_note_added
         notify_note_added()

@@ -237,7 +237,7 @@ def _mini_consolidate(node_id, top_k=15, threshold=0.75):
 
 def add_note_with_links(content, category="general", importance="normal", force=False,
                         emotional_tone=None, emotional_intensity=5, emotional_reflection=None,
-                        tags=None):
+                        tags=None, skip_ner=False):
     """
     Add note with automatic entity extraction, linking, and emotional context.
     
@@ -307,7 +307,7 @@ def add_note_with_links(content, category="general", importance="normal", force=
         bm25.add_document(node_id, bm25_text)
     
     # Extract entities and create entity-based links
-    entities = extract_entities(content)
+    entities = [] if skip_ner else extract_entities(content)
     entity_links = []
     
     graph_cache = get_graph_cache()  # Get cache for incremental updates
@@ -808,16 +808,61 @@ def search_with_activation(query, limit=5, iterations=ACTIVATION_ITERATIONS, dec
             print(f"⚠️  NODE {node_id} in blended but NOT in node_map")
             break
     
+    # Small-to-Big retrieval: atomic-fact -> parent note
+    _fact_parent_cache = {}
+    def _get_fact_parent(fact_node_id):
+        if fact_node_id in _fact_parent_cache:
+            return _fact_parent_cache[fact_node_id]
+        try:
+            conn2 = get_db()
+            row = conn2.execute(
+                "SELECT target_id FROM edges WHERE source_id=? AND edge_type='PART_OF' LIMIT 1",
+                (fact_node_id,)
+            ).fetchone()
+            parent_id = row[0] if row else None
+        except Exception:
+            parent_id = None
+        _fact_parent_cache[fact_node_id] = parent_id
+        return parent_id
+
     results = []
+    seen_ids = set()
     for node_id, activation in sorted_nodes:
         node = node_map.get(node_id)
         if not node:
             continue
-            
-        # Exclude meta-nodes from retrieval results
-        # (they exist for spreading activation only, not as search results)
-        if node.get("category") in ('abstract-topic', 'atomic-fact'):
+
+        # abstract-topic: exclude entirely
+        if node.get("category") == 'abstract-topic':
             continue
+
+        # atomic-fact / enriched-fragment: replace with parent (Small-to-Big)
+        if node.get("category") in ('atomic-fact', 'enriched-fragment'):
+            parent_id = _get_fact_parent(node_id)
+            if parent_id and parent_id not in seen_ids:
+                parent_node = node_map.get(parent_id)
+                # If parent not in node_map, load from DB directly
+                if not parent_node:
+                    try:
+                        conn_p = get_db()
+                        row = conn_p.execute(
+                            'SELECT id, content, category, importance, emotional_tone, '
+                            'emotional_intensity, timestamp FROM nodes WHERE id=?',
+                            (parent_id,)
+                        ).fetchone()
+                        if row:
+                            parent_node = dict(row)
+                            node_map[parent_id] = parent_node
+                    except Exception:
+                        pass
+                if parent_node and parent_node.get("category") not in ('abstract-topic', 'atomic-fact', 'enriched-fragment'):
+                    blended[parent_id] = max(blended.get(parent_id, 0), activation * 1.2)
+                    node = parent_node
+                    node_id = parent_id
+                else:
+                    continue
+            else:
+                continue
 
         # Filter by category if specified
         if category_filter and node.get("category") != category_filter:
@@ -849,6 +894,9 @@ def search_with_activation(query, limit=5, iterations=ACTIVATION_ITERATIONS, dec
             
         # Update access tracking
         touch_node(node_id)
+        if node_id in seen_ids:
+            continue
+        seen_ids.add(node_id)
         results.append({
             "id": node_id,
             "content": node["content"],
