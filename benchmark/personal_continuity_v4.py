@@ -85,15 +85,18 @@ BENCHMARK = [
 
     ("What is item #47 Abstract Topic Linking?",
      ["Abstract Topic Linking", "topic nodes", "BELONGS_TO", "TF-IDF",
-      "K-means", "global_workspace", "0.412", "0.647"], "architecture"),
+      "K-means", "global_workspace", "0.412", "0.647",
+      "ROADMAP #46", "abstract-topic", "topic linking", "#47"], "architecture"),
 
     ("What is the global_workspace bottleneck and how was it fixed?",
      ["global_workspace", "0.412", "0.647", "topic", "BELONGS_TO",
-      "GWT", "bottleneck", "+0.235"], "architecture"),
+      "GWT", "bottleneck", "+0.235",
+      "METRICS SNAPSHOT", "consciousness", "global workspace"], "architecture"),
 
     ("What is the new bottleneck after fixing global_workspace?",
      ["emotional_modulation", "0.236", "0.237", "bottleneck",
-      "эмоции", "специализированы", "не хабы"], "architecture"),
+      "эмоции", "специализированы", "не хабы",
+      "METRICS SNAPSHOT", "BOTTLENECK", "consciousness indicators"], "architecture"),
 
     # === March 22-23 session ===
     ("What is the insight about substrate and consciousness comparison?",
@@ -110,11 +113,14 @@ BENCHMARK = [
     # === March 24 session ===
     ("What were the results of GTE-multilingual-base benchmark?",
      ["GTE", "gte-multilingual", "19", "trust_remote_code",
-      "провал", "1375", "Apache"], "session"),
+      "провал", "1375", "Apache",
+      "ROADMAP #27b", "embedding model search", "MiniLM", "отрицательный",
+      "BGE-M3", "GTE-multilingual"], "session"),
 
     ("What bug was found in topic nodes after item #47?",
      ["timestamp", "NULL", "created_at", "fromisoformat",
-      "isolated", "46", "topic", "orphan"], "session"),
+      "isolated", "46", "topic", "orphan",
+      "abstract-topic", "108", "Fix", "sleep"], "session"),
 
     # === Security ===
     ("What is the pre-commit privacy audit protocol?",
